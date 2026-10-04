@@ -1,0 +1,29 @@
+{
+  "name": "revealwhy",
+  "owner": {
+    "name": "RevealWhy",
+    "url": "https://revealwhy.com"
+  },
+  "description": "RevealWhy plugins for Claude Code: behaviour-grounded website analytics and conversion optimization.",
+  "plugins": [
+    {
+      "name": "revealwhy",
+      "source": "./plugins/revealwhy",
+      "description": "Ask Claude why your website isn't converting — CRO audits, funnel drop-off, ignored CTAs, A/B test verdicts and AI-agent traffic, grounded in real visitor behaviour.",
+      "version": "2.0.0",
+      "category": "analytics",
+      "keywords": [
+        "analytics",
+        "cro",
+        "conversion",
+        "ux",
+        "funnel",
+        "heatmap",
+        "ab-testing",
+        "ai-traffic"
+      ],
+      "homepage": "https://revealwhy.com",
+      "repository": "https://github.com/RevealWhyApp/revealwhy-claude-plugin"
+    }
+  ]
+}

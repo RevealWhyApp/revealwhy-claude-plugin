@@ -1,0 +1,52 @@
+{
+  "name": "revealwhy",
+  "version": "2.0.0",
+  "description": "Ask Claude why your website isn't converting. CRO audits, funnel drop-off, ignored CTAs, attention and content engagement, A/B test verdicts and AI-agent traffic — grounded in real visitor behaviour, with evidence and honest confidence.",
+  "author": {
+    "name": "RevealWhy",
+    "url": "https://revealwhy.com"
+  },
+  "homepage": "https://revealwhy.com",
+  "repository": "https://github.com/RevealWhyApp/revealwhy-claude-plugin",
+  "license": "MIT",
+  "keywords": [
+    "analytics",
+    "cro",
+    "conversion-rate-optimization",
+    "ux",
+    "funnel",
+    "heatmap",
+    "ab-testing",
+    "web-analytics",
+    "ai-traffic",
+    "geo",
+    "mcp"
+  ],
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "RevealWhy API key",
+      "description": "Scoped read-only key (starts with rw_). RevealWhy → Project settings → API keys, scopes read:analytics + read:findings.",
+      "sensitive": true,
+      "required": true
+    },
+    "project_id": {
+      "type": "string",
+      "title": "RevealWhy project ID",
+      "description": "Default project for every tool (RevealWhy → Project settings → General). Tools can still take projectId explicitly.",
+      "required": false
+    }
+  },
+  "mcpServers": {
+    "revealwhy": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server/revealwhy-mcp.mjs"
+      ],
+      "env": {
+        "REVEALWHY_API_KEY": "${user_config.api_key}",
+        "REVEALWHY_PROJECT_ID": "${user_config.project_id}"
+      }
+    }
+  }
+}

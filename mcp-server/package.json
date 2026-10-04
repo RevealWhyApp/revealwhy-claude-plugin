@@ -1,0 +1,61 @@
+{
+  "name": "@revealwhy/mcp-server",
+  "version": "2.0.0",
+  "description": "RevealWhy MCP server — ask Claude why visitors don't convert: CRO findings grounded in real behaviour, drop-off, journeys, attention heatmaps, conversions, A/B test verdicts and AI-agent traffic.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "revealwhy-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/catalog.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --legal-comments=eof --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\" --outfile=../plugins/revealwhy/server/revealwhy-mcp.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "analytics",
+    "web-analytics",
+    "cro",
+    "conversion-rate-optimization",
+    "ux",
+    "heatmap",
+    "funnel",
+    "ab-testing",
+    "revealwhy"
+  ],
+  "author": "RevealWhy",
+  "license": "MIT",
+  "homepage": "https://revealwhy.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RevealWhyApp/revealwhy-claude-plugin.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "esbuild": "^0.25.9",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
