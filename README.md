@@ -65,7 +65,7 @@ Inside Claude Code:
 
 Claude Code asks for two settings during install:
 
-- **API key**: in RevealWhy, open Project settings → API keys and create a key with scopes `read:analytics`
+- **API key**: in RevealWhy, open Settings → Developers → Secret API keys and create a key with scopes `read:analytics`
   and `read:findings`. Claude Code stores it in its secure credential store.
 - **Project ID** (optional): the default project for every tool.
 
