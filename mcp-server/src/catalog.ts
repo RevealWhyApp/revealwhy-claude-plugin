@@ -3,12 +3,13 @@
  * API route that a scoped `rw_…` key can authenticate (projectReadAccess / dashboardReadAccess on
  * the server). Never add a tool here for a route a scoped key cannot reach: it would only ever 401.
  *
- * Every tool is read-only today. Write scopes (start/conclude a test, create goals/studies, …) are a
- * product/security decision that has not shipped; see README "Roadmap".
+ * Every tool is read-only except the two agent-task writes (report_fix, set_finding_status), which need a key with
+ * the write:findings scope. Nothing else writes; other write scopes (start/conclude a test, create goals/studies, …)
+ * have not shipped; see README "Roadmap".
  */
 import { z, type ZodRawShape } from "zod";
 
-export type Scope = "read:analytics" | "read:findings";
+export type Scope = "read:analytics" | "read:findings" | "write:findings";
 
 export interface ToolDef {
   name: string;
@@ -21,7 +22,13 @@ export interface ToolDef {
   path: (projectId: string, args: Record<string, any>) => string;
   /** Optional human-readable renderer; default is pretty JSON. */
   render?: (data: any) => string;
+  /** HTTP method; default GET. Anything else is a write (annotated readOnlyHint false). */
+  method?: "GET" | "POST" | "PATCH";
+  /** JSON body for a write, from the parsed args. */
+  body?: (args: Record<string, any>) => Record<string, unknown>;
 }
+
+export const isWriteTool = (def: ToolDef) => (def.method ?? "GET") !== "GET";
 
 const enc = encodeURIComponent;
 
@@ -38,9 +45,17 @@ export function qs(params: Record<string, unknown>): string {
 
 const date = (what: string) => z.string().regex(/^\d{4}-\d{2}-\d{2}/, "YYYY-MM-DD").optional().describe(what);
 const findingStatus = z
-  .enum(["suggested", "measuring", "verdict", "applied", "dismissed"])
+  .enum([
+    "suggested", "measuring", "verdict", "applied", "dismissed",
+    "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data",
+  ])
   .optional()
-  .describe("Filter by lifecycle status");
+  .describe("Filter by stored lifecycle status");
+// integration contract v1 §3
+const taskStatus = z
+  .enum(["open", "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data", "dismissed"])
+  .optional()
+  .describe("Filter by status");
 
 export const TOOLS: ToolDef[] = [
   // ── Overview ─────────────────────────────────────────────────────────────────────────────────
@@ -394,5 +409,56 @@ export const TOOLS: ToolDef[] = [
     scope: "read:findings",
     input: {},
     path: (pid) => `/api/projects/${enc(pid)}/autopilot`,
+  },
+
+  // ── Agent tasks (integration contract v1 §3–4) ─────────────────────────────────────────────────
+  {
+    name: "list_agent_tasks",
+    title: "Agent tasks",
+    description:
+      "What to fix, in the shared agent-task shape: id, scope (page), element (selector, label), evidence (sessions, attention, quotes), basis (observed / inferred / simulated / proven), suggested_change, confidence, measured_impact (null until measured) and status (open, sent_to_agent, fixed, verifying, verified, not_improved, inconclusive, not_enough_data, dismissed). Start here when asked to fix the site.",
+    scope: "read:findings",
+    input: {
+      status: taskStatus,
+      limit: z.number().int().min(1).max(200).optional().describe("Max tasks (default 50)"),
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/agent-tasks${qs({ status: a.status, limit: a.limit })}`,
+  },
+  {
+    name: "get_agent_task",
+    title: "Agent task",
+    description: "One agent task by id (the finding id), in the shared agent-task shape.",
+    scope: "read:findings",
+    input: { id: z.string().min(1).describe("Task id (finding id)") },
+    path: (pid, a) => `/api/projects/${enc(pid)}/agent-tasks/${enc(a.id)}`,
+  },
+  {
+    name: "report_fix",
+    title: "Report a fix",
+    description:
+      "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when, and starts verification (status verifying): simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days, or an A/B test decides if one is running. The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed. Needs a key with the write:findings scope.",
+    scope: "write:findings",
+    method: "POST",
+    input: {
+      id: z.string().min(1).describe("Task id (finding id)"),
+      change_description: z.string().min(1).max(2000).describe("What was changed, in one or two sentences"),
+      deployed_at: z.string().datetime({ offset: true }).optional().describe("When the change went live (ISO 8601); defaults to now"),
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}/report-fix`,
+    body: (a) => ({ change_description: a.change_description, ...(a.deployed_at ? { deployed_at: a.deployed_at } : {}) }),
+  },
+  {
+    name: "set_finding_status",
+    title: "Set task status",
+    description:
+      "WRITE (a RevealWhy extension; not part of the shared agent-task contract). Move a task through the hand-off: sent_to_agent (you picked it up), fixed (use report_fix instead when you deployed a change), dismissed (it does not apply), or open (put it back). Measured outcomes (verified, not_improved, inconclusive, not_enough_data) cannot be set; RevealWhy measures them. Needs a key with the write:findings scope.",
+    scope: "write:findings",
+    method: "PATCH",
+    input: {
+      id: z.string().min(1).describe("Task id (finding id)"),
+      status: z.enum(["open", "sent_to_agent", "fixed", "dismissed"]).describe("New status"),
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}`,
+    body: (a) => ({ status: a.status }),
   },
 ];

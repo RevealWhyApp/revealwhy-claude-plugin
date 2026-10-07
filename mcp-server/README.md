@@ -39,7 +39,7 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 Requires Node.js 18 or later.
 
-## Tools (31, all read-only)
+## Tools (35: 33 read-only, 2 agent-task writes)
 
 Every tool takes an optional `projectId`, which defaults to `REVEALWHY_PROJECT_ID`.
 
@@ -62,6 +62,13 @@ Every tool takes an optional `projectId`, which defaults to `REVEALWHY_PROJECT_I
 | | `get_progress`, `get_audience`, `get_site_graph`, `list_template_groups` | Maturity, segments, structure |
 | Experiments | `list_experiments`, `get_experiment_verdict` | A/B tests and always-valid verdicts with SRM |
 | | `get_scoreboard`, `list_improvements`, `get_autopilot` | Cumulative impact and earned autonomy |
+| Agent tasks | `list_agent_tasks`, `get_agent_task` | What to fix, in the shared agent-task shape (scope, element, evidence, basis, suggested change, measured impact, status) |
+| | `report_fix` (write) | Tell RevealWhy a fix is live: marks it `fixed` and records what changed and when |
+| | `set_finding_status` (write) | `sent_to_agent`, `fixed`, `dismissed` or `open`. Measured outcomes can't be set. A RevealWhy extension: not part of the shared agent-task contract |
+
+The two writes need a key with the `write:findings` scope as well. A task's status runs `open` → `sent_to_agent` →
+`fixed` → `verifying` → `verified` / `not_improved` / `inconclusive` / `not_enough_data`, or `dismissed`; only
+RevealWhy's measurement sets the last four, and `measured_impact` stays null until it has.
 
 **Prompts:** `site_audit`, `why_not_converting`, `experiment_review` and `ai_traffic_report`.
 
@@ -87,7 +94,7 @@ Without a key, the server still starts, and each tool returns setup instructions
 ## Troubleshooting
 
 - **401**: the key is missing, mistyped or revoked.
-- **403 "lacks the required scope"**: recreate the key with both read scopes.
+- **403 "lacks the required scope"**: recreate the key with both read scopes (and `write:findings` for the two writes).
 - **403 "Access denied to this project"**: the key belongs to a different project.
 - **Empty results**: the tracking snippet isn't installed yet, or there's no traffic yet.
 
@@ -106,7 +113,8 @@ This repository is published from the RevealWhy monorepo; open issues here.
 
 ## Security
 
-- Read-only: no tool mutates anything.
+- Read-only except `report_fix` and `set_finding_status`, which only move a task through its lifecycle (nothing is
+  deleted, and `set_finding_status open` undoes either) and need the `write:findings` scope.
 - Use scoped `rw_…` keys, which are hashed at rest and revocable. Avoid the site's tracking key: it is
   embedded in your public pages.
 - Keys are never logged. All traffic goes over HTTPS to the configured API URL only.

@@ -21500,6 +21500,7 @@ var StdioServerTransport = class {
 import { readFileSync } from "node:fs";
 
 // src/catalog.ts
+var isWriteTool = (def) => (def.method ?? "GET") !== "GET";
 var enc = encodeURIComponent;
 function qs(params) {
   const p = new URLSearchParams();
@@ -21511,7 +21512,21 @@ function qs(params) {
   return s ? `?${s}` : "";
 }
 var date3 = (what) => external_exports.string().regex(/^\d{4}-\d{2}-\d{2}/, "YYYY-MM-DD").optional().describe(what);
-var findingStatus = external_exports.enum(["suggested", "measuring", "verdict", "applied", "dismissed"]).optional().describe("Filter by lifecycle status");
+var findingStatus = external_exports.enum([
+  "suggested",
+  "measuring",
+  "verdict",
+  "applied",
+  "dismissed",
+  "sent_to_agent",
+  "fixed",
+  "verifying",
+  "verified",
+  "not_improved",
+  "inconclusive",
+  "not_enough_data"
+]).optional().describe("Filter by stored lifecycle status");
+var taskStatus = external_exports.enum(["open", "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data", "dismissed"]).optional().describe("Filter by status");
 var TOOLS = [
   // ── Overview ─────────────────────────────────────────────────────────────────────────────────
   {
@@ -21840,11 +21855,58 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
     scope: "read:findings",
     input: {},
     path: (pid) => `/api/projects/${enc(pid)}/autopilot`
+  },
+  // ── Agent tasks (integration contract v1 §3–4) ─────────────────────────────────────────────────
+  {
+    name: "list_agent_tasks",
+    title: "Agent tasks",
+    description: "What to fix, in the shared agent-task shape: id, scope (page), element (selector, label), evidence (sessions, attention, quotes), basis (observed / inferred / simulated / proven), suggested_change, confidence, measured_impact (null until measured) and status (open, sent_to_agent, fixed, verifying, verified, not_improved, inconclusive, not_enough_data, dismissed). Start here when asked to fix the site.",
+    scope: "read:findings",
+    input: {
+      status: taskStatus,
+      limit: external_exports.number().int().min(1).max(200).optional().describe("Max tasks (default 50)")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/agent-tasks${qs({ status: a.status, limit: a.limit })}`
+  },
+  {
+    name: "get_agent_task",
+    title: "Agent task",
+    description: "One agent task by id (the finding id), in the shared agent-task shape.",
+    scope: "read:findings",
+    input: { id: external_exports.string().min(1).describe("Task id (finding id)") },
+    path: (pid, a) => `/api/projects/${enc(pid)}/agent-tasks/${enc(a.id)}`
+  },
+  {
+    name: "report_fix",
+    title: "Report a fix",
+    description: "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when, and starts verification (status verifying): simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days, or an A/B test decides if one is running. The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed. Needs a key with the write:findings scope.",
+    scope: "write:findings",
+    method: "POST",
+    input: {
+      id: external_exports.string().min(1).describe("Task id (finding id)"),
+      change_description: external_exports.string().min(1).max(2e3).describe("What was changed, in one or two sentences"),
+      deployed_at: external_exports.string().datetime({ offset: true }).optional().describe("When the change went live (ISO 8601); defaults to now")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}/report-fix`,
+    body: (a) => ({ change_description: a.change_description, ...a.deployed_at ? { deployed_at: a.deployed_at } : {} })
+  },
+  {
+    name: "set_finding_status",
+    title: "Set task status",
+    description: "WRITE (a RevealWhy extension; not part of the shared agent-task contract). Move a task through the hand-off: sent_to_agent (you picked it up), fixed (use report_fix instead when you deployed a change), dismissed (it does not apply), or open (put it back). Measured outcomes (verified, not_improved, inconclusive, not_enough_data) cannot be set; RevealWhy measures them. Needs a key with the write:findings scope.",
+    scope: "write:findings",
+    method: "PATCH",
+    input: {
+      id: external_exports.string().min(1).describe("Task id (finding id)"),
+      status: external_exports.enum(["open", "sent_to_agent", "fixed", "dismissed"]).describe("New status")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}`,
+    body: (a) => ({ status: a.status })
   }
 ];
 
 // src/index.ts
-var VERSION = "2.1.0";
+var VERSION = "2.2.0";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_KEY = env("API_KEY");
@@ -21852,7 +21914,7 @@ var API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, ""
 var DEFAULT_PROJECT_ID = env("PROJECT_ID");
 var FINDINGS_FIXTURE = env("FINDINGS_FIXTURE");
 var MAX_CHARS = Number(env("MAX_RESPONSE_CHARS")) || 6e4;
-var SETUP_HINT = "Set REVEALWHY_API_KEY to a scoped read-only key (RevealWhy \u2192 Settings \u2192 Developers \u2192 Secret API keys, scopes read:analytics + read:findings) and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
+var SETUP_HINT = "Set REVEALWHY_API_KEY to a scoped key (RevealWhy \u2192 Settings \u2192 Developers \u2192 Secret API keys, scopes read:analytics + read:findings; add write:findings for report_fix / set_finding_status) and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
 var text = (t, isError = false) => ({ content: [{ type: "text", text: t }], ...isError ? { isError } : {} });
 function cap(s) {
   if (s.length <= MAX_CHARS) return s;
@@ -21873,22 +21935,29 @@ function explainHttpError(status, body, scope) {
   if (status === 429) return `Rate limited by RevealWhy (429). Wait a moment and retry.`;
   return `RevealWhy API error ${status}: ${String(detail).slice(0, 500)}`;
 }
-async function apiGet(path, scope) {
+async function apiCall(path, scope, method = "GET", body) {
   let res;
   try {
     res = await fetch(`${API_URL}${path}`, {
-      headers: { "X-API-Key": API_KEY, Accept: "application/json", "User-Agent": `revealwhy-mcp/${VERSION}` },
+      method,
+      headers: {
+        "X-API-Key": API_KEY,
+        Accept: "application/json",
+        "User-Agent": `revealwhy-mcp/${VERSION}`,
+        ...body ? { "Content-Type": "application/json" } : {}
+      },
+      ...body ? { body: JSON.stringify(body) } : {},
       signal: AbortSignal.timeout(6e4)
     });
   } catch (e) {
     return { ok: false, error: `Could not reach the RevealWhy API at ${API_URL} (${e?.message ?? e}).` };
   }
-  const body = await res.text();
-  if (!res.ok) return { ok: false, error: explainHttpError(res.status, body, scope) };
+  const payload = await res.text();
+  if (!res.ok) return { ok: false, error: explainHttpError(res.status, payload, scope) };
   try {
-    return { ok: true, data: JSON.parse(body) };
+    return { ok: true, data: JSON.parse(payload) };
   } catch {
-    return { ok: true, data: body };
+    return { ok: true, data: payload };
   }
 }
 var _fixture = null;
@@ -21922,7 +21991,7 @@ function fromFixture(name, args) {
 var server = new McpServer(
   { name: "revealwhy", title: "RevealWhy", version: VERSION },
   {
-    instructions: "RevealWhy explains WHY visitors don't convert, grounded in real on-site behaviour. Start with get_project_status or get_report; use list_findings for what to fix. projectId is optional when REVEALWHY_PROJECT_ID is set. Honesty rules: always state a finding's basis and confidence; an expectedLift with basis 'prior' is research, not a promise; surface unmet/unknown prerequisiteChecks."
+    instructions: "RevealWhy explains WHY visitors don't convert, grounded in real on-site behaviour. Start with get_project_status or get_report; use list_findings for what to fix. projectId is optional when REVEALWHY_PROJECT_ID is set. Honesty rules: always state a finding's basis and confidence; an expectedLift with basis 'prior' is research, not a promise; surface unmet/unknown prerequisiteChecks. To fix the site: list_agent_tasks, set_finding_status sent_to_agent when you take one, and report_fix after the change is deployed (writes need a write:findings key). Never describe a fix as working until its status is verified."
   }
 );
 var projectIdInput = external_exports.string().min(1).optional().describe(DEFAULT_PROJECT_ID ? "Project ID (defaults to the configured project)" : "Project ID (required unless REVEALWHY_PROJECT_ID is set)");
@@ -21932,7 +22001,7 @@ async function runTool(def, args) {
   if (!API_KEY) return text(`RevealWhy is not configured: REVEALWHY_API_KEY is not set. ${SETUP_HINT}`, true);
   const projectId = args.projectId || DEFAULT_PROJECT_ID;
   if (!projectId) return text(`No project selected: pass projectId or set REVEALWHY_PROJECT_ID. ${SETUP_HINT}`, true);
-  const r = await apiGet(def.path(projectId, args), def.scope);
+  const r = await apiCall(def.path(projectId, args), def.scope, def.method ?? "GET", def.body?.(args));
   if (!r.ok) return text(r.error, true);
   const out = def.render ? def.render(r.data) : typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2);
   return text(cap(out));
@@ -21944,7 +22013,10 @@ for (const def of TOOLS) {
       title: def.title,
       description: def.description,
       inputSchema: { projectId: projectIdInput, ...def.input },
-      annotations: { title: def.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+      annotations: isWriteTool(def) ? (
+        // writes only move a task through its lifecycle; each is undoable (set_finding_status open), none deletes
+        { title: def.title, readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+      ) : { title: def.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
     },
     async (args) => {
       try {

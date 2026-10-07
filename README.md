@@ -29,7 +29,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 
 ## What's included
 
-**31 read-only MCP tools** cover these areas:
+**35 MCP tools** (33 read-only) cover these areas:
 
 | Area | Tools |
 |---|---|
@@ -39,6 +39,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | Conversions & goals | `list_conversion_goals`, `get_conversion_stats`, `list_conversion_events`, `list_goals`, `get_goal_journey`, `suggest_goals` |
 | Findings | `list_findings`, `get_finding`, `get_finding_evidence`, `get_progress`, `get_audience`, `get_site_graph`, `list_template_groups` |
 | Experiments | `list_experiments`, `get_experiment_verdict`, `get_scoreboard`, `list_improvements`, `get_autopilot` |
+| Agent tasks | `list_agent_tasks`, `get_agent_task`; writes `report_fix` and `set_finding_status` (need a key with `write:findings`) |
 
 **6 skills.** Claude uses these automatically, or you can invoke them by name:
 
