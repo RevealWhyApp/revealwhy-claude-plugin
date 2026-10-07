@@ -13,7 +13,7 @@ import { z } from "zod";
 import { readFileSync } from "node:fs";
 import { TOOLS, type ToolDef } from "./catalog.js";
 
-export const VERSION = "2.0.0";
+export const VERSION = "2.1.0";
 
 // Environment — REVEALWHY_* is preferred; legacy INSIGHTFLOW_* names still work as a fallback.
 // An unset optional plugin setting can arrive blank or as a literal, unexpanded "${user_config.x}" — treat both as unset.
@@ -29,7 +29,7 @@ const FINDINGS_FIXTURE = env("FINDINGS_FIXTURE");
 const MAX_CHARS = Number(env("MAX_RESPONSE_CHARS")) || 60_000;
 
 const SETUP_HINT =
-  "Set REVEALWHY_API_KEY to a scoped read-only key (RevealWhy → Project settings → API keys, scopes read:analytics + read:findings) " +
+  "Set REVEALWHY_API_KEY to a scoped read-only key (RevealWhy → Settings → Developers → Secret API keys, scopes read:analytics + read:findings) " +
   "and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -50,7 +50,7 @@ function explainHttpError(status: number, body: string, scope: string): string {
   }
   if (status === 401) return `RevealWhy rejected the API key (401: ${detail}). ${SETUP_HINT}`;
   if (status === 403)
-    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope — create one under Project settings → API keys.`;
+    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope — create one under Settings → Developers → Secret API keys.`;
   if (status === 404) return `Not found (404: ${detail}). Check the project ID and any IDs passed to this tool.`;
   if (status === 429) return `Rate limited by RevealWhy (429). Wait a moment and retry.`;
   return `RevealWhy API error ${status}: ${String(detail).slice(0, 500)}`;

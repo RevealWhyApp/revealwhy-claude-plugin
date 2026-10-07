@@ -10,7 +10,7 @@ engagement, conversions and goals, A/B test verdicts, and AI-agent traffic.
 
 ## Quick start
 
-1. In RevealWhy, open **Project settings → API keys** and create a key with scopes `read:analytics` and
+1. In RevealWhy, open **Settings → Developers → Secret API keys** and create a key with scopes `read:analytics` and
    `read:findings`. It starts with `rw_`.
 2. Add the server. Until the package is on npm, use the self-contained bundle from the public plugin repo
    (`git clone https://github.com/RevealWhyApp/revealwhy-claude-plugin`), whose file is

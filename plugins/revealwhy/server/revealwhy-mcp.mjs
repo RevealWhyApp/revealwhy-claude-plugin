@@ -21844,7 +21844,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
 ];
 
 // src/index.ts
-var VERSION = "2.0.0";
+var VERSION = "2.1.0";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_KEY = env("API_KEY");
@@ -21852,7 +21852,7 @@ var API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, ""
 var DEFAULT_PROJECT_ID = env("PROJECT_ID");
 var FINDINGS_FIXTURE = env("FINDINGS_FIXTURE");
 var MAX_CHARS = Number(env("MAX_RESPONSE_CHARS")) || 6e4;
-var SETUP_HINT = "Set REVEALWHY_API_KEY to a scoped read-only key (RevealWhy \u2192 Project settings \u2192 API keys, scopes read:analytics + read:findings) and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
+var SETUP_HINT = "Set REVEALWHY_API_KEY to a scoped read-only key (RevealWhy \u2192 Settings \u2192 Developers \u2192 Secret API keys, scopes read:analytics + read:findings) and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
 var text = (t, isError = false) => ({ content: [{ type: "text", text: t }], ...isError ? { isError } : {} });
 function cap(s) {
   if (s.length <= MAX_CHARS) return s;
@@ -21868,7 +21868,7 @@ function explainHttpError(status, body, scope) {
   }
   if (status === 401) return `RevealWhy rejected the API key (401: ${detail}). ${SETUP_HINT}`;
   if (status === 403)
-    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope \u2014 create one under Project settings \u2192 API keys.`;
+    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope \u2014 create one under Settings \u2192 Developers \u2192 Secret API keys.`;
   if (status === 404) return `Not found (404: ${detail}). Check the project ID and any IDs passed to this tool.`;
   if (status === 429) return `Rate limited by RevealWhy (429). Wait a moment and retry.`;
   return `RevealWhy API error ${status}: ${String(detail).slice(0, 500)}`;

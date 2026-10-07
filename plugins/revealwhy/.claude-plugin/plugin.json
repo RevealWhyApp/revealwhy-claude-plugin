@@ -1,6 +1,6 @@
 {
   "name": "revealwhy",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Ask Claude why your website isn't converting. CRO audits, funnel drop-off, ignored CTAs, attention and content engagement, A/B test verdicts and AI-agent traffic — grounded in real visitor behaviour, with evidence and honest confidence.",
   "author": {
     "name": "RevealWhy",
@@ -26,14 +26,14 @@
     "api_key": {
       "type": "string",
       "title": "RevealWhy API key",
-      "description": "Scoped read-only key (starts with rw_). RevealWhy → Project settings → API keys, scopes read:analytics + read:findings.",
+      "description": "Scoped read-only key (starts with rw_) for reading insights. RevealWhy → Settings → Developers → Secret API keys, scopes read:analytics + read:findings. Optional to install RevealWhy into a codebase — that only needs the public publishable key.",
       "sensitive": true,
-      "required": true
+      "required": false
     },
     "project_id": {
       "type": "string",
       "title": "RevealWhy project ID",
-      "description": "Default project for every tool (RevealWhy → Project settings → General). Tools can still take projectId explicitly.",
+      "description": "Default project for every tool (RevealWhy → Settings → Tracking code → Project ID). Tools can still take projectId explicitly.",
       "required": false
     }
   },
