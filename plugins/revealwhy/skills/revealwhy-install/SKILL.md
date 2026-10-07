@@ -52,6 +52,9 @@ Rules (they are what make installs work and stay legal):
 5. `?rw_debug=1` in the page URL → `data-debug="true"`: the SDK then shows an on-page badge saying exactly
    why it is or is not recording.
 6. `track()` **drops** events until the script is loaded — never queue actions from before consent.
+7. Load the A/B test runtime with the SDK (`revealwhy-variants.js` + `revealwhy-experiments.js`, same key and
+   endpoint attributes, same consent gate). It does nothing until a test is started in the dashboard, and then
+   the test runs without another code change.
 
 Reference shape (TypeScript; adapt names, consent storage and the framework hook):
 
@@ -79,6 +82,15 @@ export function loadRevealWhy(): boolean {
   s.setAttribute('data-exclude-paths', EXCLUDE.join(','));
   if (/[?&]rw_debug=1\b/.test(window.location.search)) s.setAttribute('data-debug', 'true');
   document.head.appendChild(s);
+  // A/B test runtime: idle until a dashboard test runs; it reads the project from the SDK's session
+  for (const file of ['revealwhy-variants.js', 'revealwhy-experiments.js']) {
+    const x = document.createElement('script');
+    x.async = true;
+    x.src = `${ENDPOINT}/${file}`;
+    x.setAttribute('data-api-key', KEY);
+    x.setAttribute('data-api-endpoint', ENDPOINT);
+    document.head.appendChild(x);
+  }
   return true;
 }
 /** Call from the consent banner / CMP callback. */

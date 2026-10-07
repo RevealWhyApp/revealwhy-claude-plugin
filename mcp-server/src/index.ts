@@ -11,9 +11,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFileSync } from "node:fs";
-import { TOOLS, type ToolDef } from "./catalog.js";
+import { TOOLS, isWriteTool, type ToolDef } from "./catalog.js";
 
-export const VERSION = "2.1.0";
+export const VERSION = "2.2.0";
 
 // Environment — REVEALWHY_* is preferred; legacy INSIGHTFLOW_* names still work as a fallback.
 // An unset optional plugin setting can arrive blank or as a literal, unexpanded "${user_config.x}" — treat both as unset.
@@ -29,7 +29,7 @@ const FINDINGS_FIXTURE = env("FINDINGS_FIXTURE");
 const MAX_CHARS = Number(env("MAX_RESPONSE_CHARS")) || 60_000;
 
 const SETUP_HINT =
-  "Set REVEALWHY_API_KEY to a scoped read-only key (RevealWhy → Settings → Developers → Secret API keys, scopes read:analytics + read:findings) " +
+  "Set REVEALWHY_API_KEY to a scoped key (RevealWhy → Settings → Developers → Secret API keys, scopes read:analytics + read:findings; add write:findings for report_fix / set_finding_status) " +
   "and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -56,22 +56,34 @@ function explainHttpError(status: number, body: string, scope: string): string {
   return `RevealWhy API error ${status}: ${String(detail).slice(0, 500)}`;
 }
 
-async function apiGet(path: string, scope: string): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
+async function apiCall(
+  path: string,
+  scope: string,
+  method: "GET" | "POST" | "PATCH" = "GET",
+  body?: Record<string, unknown>,
+): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
-      headers: { "X-API-Key": API_KEY!, Accept: "application/json", "User-Agent": `revealwhy-mcp/${VERSION}` },
+      method,
+      headers: {
+        "X-API-Key": API_KEY!,
+        Accept: "application/json",
+        "User-Agent": `revealwhy-mcp/${VERSION}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(60_000),
     });
   } catch (e: any) {
     return { ok: false, error: `Could not reach the RevealWhy API at ${API_URL} (${e?.message ?? e}).` };
   }
-  const body = await res.text();
-  if (!res.ok) return { ok: false, error: explainHttpError(res.status, body, scope) };
+  const payload = await res.text();
+  if (!res.ok) return { ok: false, error: explainHttpError(res.status, payload, scope) };
   try {
-    return { ok: true, data: JSON.parse(body) };
+    return { ok: true, data: JSON.parse(payload) };
   } catch {
-    return { ok: true, data: body };
+    return { ok: true, data: payload };
   }
 }
 
@@ -113,7 +125,9 @@ const server = new McpServer(
     instructions:
       "RevealWhy explains WHY visitors don't convert, grounded in real on-site behaviour. Start with get_project_status or get_report; " +
       "use list_findings for what to fix. projectId is optional when REVEALWHY_PROJECT_ID is set. Honesty rules: always state a finding's " +
-      "basis and confidence; an expectedLift with basis 'prior' is research, not a promise; surface unmet/unknown prerequisiteChecks.",
+      "basis and confidence; an expectedLift with basis 'prior' is research, not a promise; surface unmet/unknown prerequisiteChecks. " +
+      "To fix the site: list_agent_tasks, set_finding_status sent_to_agent when you take one, and report_fix after the change is deployed " +
+      "(writes need a write:findings key). Never describe a fix as working until its status is verified.",
   },
 );
 
@@ -129,7 +143,7 @@ async function runTool(def: ToolDef, args: Record<string, any>): Promise<ToolRes
   if (!API_KEY) return text(`RevealWhy is not configured: REVEALWHY_API_KEY is not set. ${SETUP_HINT}`, true);
   const projectId = args.projectId || DEFAULT_PROJECT_ID;
   if (!projectId) return text(`No project selected: pass projectId or set REVEALWHY_PROJECT_ID. ${SETUP_HINT}`, true);
-  const r = await apiGet(def.path(projectId, args), def.scope);
+  const r = await apiCall(def.path(projectId, args), def.scope, def.method ?? "GET", def.body?.(args));
   if (!r.ok) return text(r.error, true);
   const out = def.render ? def.render(r.data) : typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2);
   return text(cap(out));
@@ -142,7 +156,10 @@ for (const def of TOOLS) {
       title: def.title,
       description: def.description,
       inputSchema: { projectId: projectIdInput, ...def.input },
-      annotations: { title: def.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      annotations: isWriteTool(def)
+        ? // writes only move a task through its lifecycle; each is undoable (set_finding_status open), none deletes
+          { title: def.title, readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+        : { title: def.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async (args: Record<string, any>) => {
       try {
