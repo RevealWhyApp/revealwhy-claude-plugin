@@ -41,7 +41,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | Experiments | `list_experiments`, `get_experiment_verdict`, `get_scoreboard`, `list_improvements`, `get_autopilot` |
 | Agent tasks | `list_agent_tasks`, `get_agent_task`; writes `report_fix` and `set_finding_status` (need a key with `write:findings`) |
 
-**6 skills.** Claude uses these automatically, or you can invoke them by name:
+**7 skills.** Claude uses these automatically, or you can invoke them by name:
 
 | Skill | For |
 |---|---|
@@ -51,6 +51,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `ab-test-readout` | Reports winner / loser / inconclusive, with SRM checks |
 | `ai-agent-traffic` | Shows how AI assistants and crawlers read your site (GEO) |
 | `revealwhy-setup` | Connects the plugin or troubleshoots the connection |
+| `revealwhy-install` | Adds RevealWhy tracking to the codebase you're in: one consent-gated loader and 3–8 key events, then verifies it |
 
 **4 guided prompts** run as slash commands from the MCP server: `site_audit`, `why_not_converting`,
 `experiment_review` and `ai_traffic_report`.
@@ -85,7 +86,10 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 ## Privacy & safety
 
-- **Read-only.** No tool can change your site, your experiments or your settings.
+- **Almost all read-only.** 33 of the 35 tools only read. Two write, and only with a `write:findings` key:
+  `set_finding_status` (e.g. "I'm working on this one") and `report_fix` ("I changed the site"). A reported fix
+  waits for the owner to confirm it in RevealWhy before anything is checked. No tool can change your site,
+  start or stop an experiment, or change your settings.
 - **Scoped keys.** Use a `rw_…` key limited to analytics and findings for one project. It is stored hashed
   and you can revoke it at any time.
 - **One destination.** The MCP server only talks to the RevealWhy API. Results go to Claude only for the
