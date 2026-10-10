@@ -47,10 +47,10 @@ const date = (what: string) => z.string().regex(/^\d{4}-\d{2}-\d{2}/, "YYYY-MM-D
 const findingStatus = z
   .enum([
     "suggested", "measuring", "verdict", "applied", "dismissed",
-    "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data",
+    "sent_to_agent", "fix_reported", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data",
   ])
   .optional()
-  .describe("Filter by stored lifecycle status");
+  .describe("Filter by stored lifecycle status (fix_reported = a reported fix waiting for the owner's OK)");
 // integration contract v1 §3
 const taskStatus = z
   .enum(["open", "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data", "dismissed"])
@@ -436,7 +436,7 @@ export const TOOLS: ToolDef[] = [
     name: "report_fix",
     title: "Report a fix",
     description:
-      "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when, and starts verification (status verifying): simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days, or an A/B test decides if one is running. The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed. Needs a key with the write:findings scope.",
+      "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when (status fixed, fix.owner_approval awaiting). Verification does NOT start yet: the owner sees \"Fix reported, awaiting your OK\" in RevealWhy and confirms or undoes it; you cannot confirm it for them. Once the owner confirms, the task moves to verifying: simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days (an A/B test result is never written over a fix under verification). The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed, and tell the owner it is waiting for their OK. Needs a key with the write:findings scope.",
     scope: "write:findings",
     method: "POST",
     input: {
@@ -451,7 +451,7 @@ export const TOOLS: ToolDef[] = [
     name: "set_finding_status",
     title: "Set task status",
     description:
-      "WRITE (a RevealWhy extension; not part of the shared agent-task contract). Move a task through the hand-off: sent_to_agent (you picked it up), fixed (use report_fix instead when you deployed a change), dismissed (it does not apply), or open (put it back). Measured outcomes (verified, not_improved, inconclusive, not_enough_data) cannot be set; RevealWhy measures them. Needs a key with the write:findings scope.",
+      "WRITE (a RevealWhy extension; not part of the shared agent-task contract). Move a task through the hand-off: sent_to_agent (you picked it up), fixed (use report_fix instead when you deployed a change; a key cannot set fixed on a task whose suggested_action.requiresHumanApproval is true, error requires_human_approval), dismissed (it does not apply), or open (put it back). Measured outcomes (verified, not_improved, inconclusive, not_enough_data) cannot be set; RevealWhy measures them. Needs a key with the write:findings scope.",
     scope: "write:findings",
     method: "PATCH",
     input: {

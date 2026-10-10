@@ -21519,13 +21519,14 @@ var findingStatus = external_exports.enum([
   "applied",
   "dismissed",
   "sent_to_agent",
+  "fix_reported",
   "fixed",
   "verifying",
   "verified",
   "not_improved",
   "inconclusive",
   "not_enough_data"
-]).optional().describe("Filter by stored lifecycle status");
+]).optional().describe("Filter by stored lifecycle status (fix_reported = a reported fix waiting for the owner's OK)");
 var taskStatus = external_exports.enum(["open", "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data", "dismissed"]).optional().describe("Filter by status");
 var TOOLS = [
   // ── Overview ─────────────────────────────────────────────────────────────────────────────────
@@ -21879,7 +21880,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
   {
     name: "report_fix",
     title: "Report a fix",
-    description: "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when, and starts verification (status verifying): simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days, or an A/B test decides if one is running. The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed. Needs a key with the write:findings scope.",
+    description: 'WRITE. Tell RevealWhy a fix for a task is live: records what changed and when (status fixed, fix.owner_approval awaiting). Verification does NOT start yet: the owner sees "Fix reported, awaiting your OK" in RevealWhy and confirms or undoes it; you cannot confirm it for them. Once the owner confirms, the task moves to verifying: simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days (an A/B test result is never written over a fix under verification). The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed, and tell the owner it is waiting for their OK. Needs a key with the write:findings scope.',
     scope: "write:findings",
     method: "POST",
     input: {
@@ -21893,7 +21894,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
   {
     name: "set_finding_status",
     title: "Set task status",
-    description: "WRITE (a RevealWhy extension; not part of the shared agent-task contract). Move a task through the hand-off: sent_to_agent (you picked it up), fixed (use report_fix instead when you deployed a change), dismissed (it does not apply), or open (put it back). Measured outcomes (verified, not_improved, inconclusive, not_enough_data) cannot be set; RevealWhy measures them. Needs a key with the write:findings scope.",
+    description: "WRITE (a RevealWhy extension; not part of the shared agent-task contract). Move a task through the hand-off: sent_to_agent (you picked it up), fixed (use report_fix instead when you deployed a change; a key cannot set fixed on a task whose suggested_action.requiresHumanApproval is true, error requires_human_approval), dismissed (it does not apply), or open (put it back). Measured outcomes (verified, not_improved, inconclusive, not_enough_data) cannot be set; RevealWhy measures them. Needs a key with the write:findings scope.",
     scope: "write:findings",
     method: "PATCH",
     input: {
@@ -21906,7 +21907,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
 ];
 
 // src/index.ts
-var VERSION = "2.2.1";
+var VERSION = "2.2.2";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_KEY = env("API_KEY");
@@ -21991,7 +21992,7 @@ function fromFixture(name, args) {
 var server = new McpServer(
   { name: "revealwhy", title: "RevealWhy", version: VERSION },
   {
-    instructions: "RevealWhy explains WHY visitors don't convert, grounded in real on-site behaviour. Start with get_project_status or get_report; use list_findings for what to fix. projectId is optional when REVEALWHY_PROJECT_ID is set. Honesty rules: always state a finding's basis and confidence; an expectedLift with basis 'prior' is research, not a promise; surface unmet/unknown prerequisiteChecks. To fix the site: list_agent_tasks, set_finding_status sent_to_agent when you take one, and report_fix after the change is deployed (writes need a write:findings key). Never describe a fix as working until its status is verified."
+    instructions: "RevealWhy explains WHY visitors don't convert, grounded in real on-site behaviour. Start with get_project_status or get_report; use list_findings for what to fix. projectId is optional when REVEALWHY_PROJECT_ID is set. Honesty rules: always state a finding's basis and confidence; an expectedLift with basis 'prior' is research, not a promise; surface unmet/unknown prerequisiteChecks. To fix the site: list_agent_tasks, set_finding_status sent_to_agent when you take one, and report_fix after the change is deployed; the owner then confirms it in RevealWhy before verification starts (writes need a write:findings key). Never describe a fix as working until its status is verified."
   }
 );
 var projectIdInput = external_exports.string().min(1).optional().describe(DEFAULT_PROJECT_ID ? "Project ID (defaults to the configured project)" : "Project ID (required unless REVEALWHY_PROJECT_ID is set)");

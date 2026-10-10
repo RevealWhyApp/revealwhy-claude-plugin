@@ -10,7 +10,7 @@
       "name": "revealwhy",
       "source": "./plugins/revealwhy",
       "description": "Ask Claude why your website isn't converting — CRO audits, funnel drop-off, ignored CTAs, A/B test verdicts and AI-agent traffic, grounded in real visitor behaviour.",
-      "version": "2.2.1",
+      "version": "2.2.2",
       "category": "analytics",
       "keywords": [
         "analytics",
