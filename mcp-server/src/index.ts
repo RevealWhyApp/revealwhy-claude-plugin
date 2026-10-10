@@ -13,7 +13,7 @@ import { z } from "zod";
 import { readFileSync } from "node:fs";
 import { TOOLS, isWriteTool, type ToolDef } from "./catalog.js";
 
-export const VERSION = "2.2.0";
+export const VERSION = "2.2.1";
 
 // Environment — REVEALWHY_* is preferred; legacy INSIGHTFLOW_* names still work as a fallback.
 // An unset optional plugin setting can arrive blank or as a literal, unexpanded "${user_config.x}" — treat both as unset.

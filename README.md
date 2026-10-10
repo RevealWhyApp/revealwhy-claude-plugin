@@ -105,8 +105,10 @@ environment variables apply:
 
 ## Roadmap
 
-Write actions are planned, gated by write-scoped keys: start or conclude a test from a finding, create goals
+Write actions are planned, gated by write-scoped keys: draft a test from a finding, create goals
 and funnels, and launch user-testing studies and synthetic-visitor runs. Until then, use the RevealWhy
-dashboard for those.
+dashboard for those. An API key can only ever create a test as a draft: starting, stopping, concluding or
+archiving one needs the project owner's approval, so the API answers `403 owner_confirm_required` with an
+`approveUrl` the owner opens to confirm.
 
 MIT licensed · [revealwhy.com](https://revealwhy.com)

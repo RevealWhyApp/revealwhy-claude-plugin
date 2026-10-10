@@ -1,6 +1,6 @@
 {
   "name": "@revealwhy/mcp-server",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "RevealWhy MCP server — ask Claude why visitors don't convert: CRO findings grounded in real behaviour, drop-off, journeys, attention heatmaps, conversions, A/B test verdicts and AI-agent traffic.",
   "type": "module",
   "main": "dist/index.js",
