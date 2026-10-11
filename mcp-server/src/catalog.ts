@@ -311,13 +311,15 @@ export const TOOLS: ToolDef[] = [
     name: "list_findings",
     title: "Findings",
     description:
-      "RevealWhy's grounded findings — where real visitor behaviour diverges from what each page is for. Each finding has the change, the mechanism (why, as a hypothesis), the basis (proven/observed/principle), a calibrated confidence, the evidence layer (expected lift, percentile frame, prerequisite checks) and a bounded suggested_action. The main 'what should I fix on my site?' tool.",
+      "RevealWhy's grounded findings — where real visitor behaviour diverges from what each page is for. Each finding has the change, the mechanism (why, as a hypothesis), the basis (proven/observed/principle/simulated), a calibrated confidence, the owner-facing certainty word (certaintyWord: A hunch / Likely / Confirmed / Proven — repeat it, don't turn confidence into a percentage), the evidence layer (expected lift, percentile frame, prerequisite checks) and a bounded suggested_action. Pass limit (and then cursor = the previous nextCursor) to page through a long list. The main 'what should I fix on my site?' tool.",
     scope: "read:findings",
     input: {
       pageKeyId: z.string().optional().describe("Filter to one page"),
       status: findingStatus,
+      limit: z.number().int().min(1).max(100).optional().describe("Page size; the reply then has total and nextCursor"),
+      cursor: z.string().optional().describe("nextCursor from the previous page"),
     },
-    path: (pid, a) => `/api/projects/${enc(pid)}/findings${qs({ pageKeyId: a.pageKeyId, status: a.status })}`,
+    path: (pid, a) => `/api/projects/${enc(pid)}/findings${qs({ pageKeyId: a.pageKeyId, status: a.status, limit: a.limit, cursor: a.cursor })}`,
   },
   {
     name: "get_finding",
