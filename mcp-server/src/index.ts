@@ -13,7 +13,7 @@ import { z } from "zod";
 import { readFileSync } from "node:fs";
 import { TOOLS, isWriteTool, type ToolDef } from "./catalog.js";
 
-export const VERSION = "2.2.3";
+export const VERSION = "2.2.4";
 
 // Environment — REVEALWHY_* is preferred; legacy INSIGHTFLOW_* names still work as a fallback.
 // An unset optional plugin setting can arrive blank or as a literal, unexpanded "${user_config.x}" — treat both as unset.
@@ -40,20 +40,63 @@ function cap(s: string): string {
   return `${s.slice(0, MAX_CHARS)}\n\n…[truncated ${s.length - MAX_CHARS} characters — narrow the query (filters, limit, date range) for the rest]`;
 }
 
+/** Shown for anything we can't explain precisely; the raw cause goes to stderr only (logged, never returned). */
+const GENERIC_ERROR =
+  "RevealWhy could not complete this request. Try again; if it keeps failing, check the API key (REVEALWHY_API_KEY) and project id (REVEALWHY_PROJECT_ID).";
+
+const logError = (where: string, e: unknown) =>
+  console.error(`[revealwhy-mcp] ${where}:`, e instanceof Error ? (e.stack ?? e.message) : e);
+
+/**
+ * Parse a Retry-After header (RFC 9110 §10.2.3): delay-seconds or an HTTP-date. Returns whole seconds
+ * (>= 0), or undefined when absent/unparseable. Falls back to our API's JSON `retryAfter` (seconds).
+ */
+function parseRetryAfter(header: string | null | undefined, bodyRetryAfter?: unknown, now = Date.now()): number | undefined {
+  const h = header?.trim();
+  if (h) {
+    if (/^\d+$/.test(h)) return Number(h);
+    const at = Date.parse(h);
+    if (!Number.isNaN(at)) return Math.max(0, Math.ceil((at - now) / 1000));
+  }
+  const b = Number(bodyRetryAfter);
+  return Number.isFinite(b) && b >= 0 ? Math.ceil(b) : undefined;
+}
+
 /** Map an HTTP failure to an actionable message instead of a raw status dump. */
-function explainHttpError(status: number, body: string, scope: string): string {
-  let detail = body;
+function explainHttpError(status: number, body: string, scope: string, retryAfterHeader: string | null): string {
+  let json: any;
   try {
-    detail = JSON.parse(body)?.error ?? body;
+    json = JSON.parse(body);
   } catch {
-    /* plain-text body */
+    /* plain-text body — not one of our API's JSON errors */
+  }
+  const apiDetail = typeof json?.error === "string" ? json.error : typeof json?.message === "string" ? json.message : undefined;
+  const detail = apiDetail ?? `HTTP ${status}`;
+  if (status === 429) {
+    const retry_after_s = parseRetryAfter(retryAfterHeader, json?.retryAfter);
+    return JSON.stringify(
+      {
+        error: "rate_limited",
+        message:
+          retry_after_s !== undefined
+            ? `Rate limited by RevealWhy (429). Retry after ${retry_after_s} s.`
+            : "Rate limited by RevealWhy (429). Wait a minute and retry.",
+        retry_after_s: retry_after_s ?? null,
+      },
+      null,
+      2,
+    );
   }
   if (status === 401) return `RevealWhy rejected the API key (401: ${detail}). ${SETUP_HINT}`;
   if (status === 403)
     return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope — create one under Settings → Developers → Secret API keys.`;
   if (status === 404) return `Not found (404: ${detail}). Check the project ID and any IDs passed to this tool.`;
-  if (status === 429) return `Rate limited by RevealWhy (429). Wait a moment and retry.`;
-  return `RevealWhy API error ${status}: ${String(detail).slice(0, 500)}`;
+  // Known API errors: a 4xx carrying our JSON { error | message, code? } is safe and useful to show.
+  if (status >= 400 && status < 500 && apiDetail !== undefined)
+    return `RevealWhy API error ${status}${typeof json?.code === "string" ? ` (${json.code})` : ""}: ${apiDetail.slice(0, 500)}`;
+  // Anything else (5xx, HTML/plain-text bodies) may carry internals: log it, return a generic next step.
+  logError(`unexpected API response ${status}`, body.slice(0, 2000));
+  return `${GENERIC_ERROR} (HTTP ${status})`;
 }
 
 async function apiCall(
@@ -76,10 +119,17 @@ async function apiCall(
       signal: AbortSignal.timeout(60_000),
     });
   } catch (e: any) {
-    return { ok: false, error: `Could not reach the RevealWhy API at ${API_URL} (${e?.message ?? e}).` };
+    logError(`request to ${API_URL} failed`, e);
+    const timedOut = e?.name === "TimeoutError" || e?.name === "AbortError";
+    return {
+      ok: false,
+      error: timedOut
+        ? `The RevealWhy API at ${API_URL} did not answer within 60 s. Try again, or narrow the query (date range, limit).`
+        : `Could not reach the RevealWhy API at ${API_URL}. Check your network and REVEALWHY_API_URL, then try again.`,
+    };
   }
   const payload = await res.text();
-  if (!res.ok) return { ok: false, error: explainHttpError(res.status, payload, scope) };
+  if (!res.ok) return { ok: false, error: explainHttpError(res.status, payload, scope, res.headers.get("retry-after")) };
   try {
     return { ok: true, data: JSON.parse(payload) };
   } catch {
@@ -164,8 +214,9 @@ for (const def of TOOLS) {
     async (args: Record<string, any>) => {
       try {
         return await runTool(def, args);
-      } catch (e: any) {
-        return text(`Error: ${e?.message ?? e}`, true);
+      } catch (e: unknown) {
+        logError(`tool ${def.name} failed`, e); // raw cause to stderr only — never into the tool result
+        return text(GENERIC_ERROR, true);
       }
     },
   );
