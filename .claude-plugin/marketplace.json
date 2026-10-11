@@ -10,7 +10,7 @@
       "name": "revealwhy",
       "source": "./plugins/revealwhy",
       "description": "Ask Claude why your website isn't converting — CRO audits, funnel drop-off, ignored CTAs, A/B test verdicts and AI-agent traffic, grounded in real visitor behaviour.",
-      "version": "2.2.4",
+      "version": "2.3.0",
       "category": "analytics",
       "keywords": [
         "analytics",
@@ -21,6 +21,15 @@
         "heatmap",
         "ab-testing",
         "ai-traffic"
+      ],
+      "tags": [
+        "cro",
+        "conversion-rate-optimization",
+        "web-analytics",
+        "ab-testing",
+        "ux",
+        "ai-traffic",
+        "mcp"
       ],
       "homepage": "https://revealwhy.com",
       "repository": "https://github.com/RevealWhyApp/revealwhy-claude-plugin"
