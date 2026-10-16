@@ -1,0 +1,119 @@
+name: Release
+
+# Lives in the PUBLIC repo RevealWhyApp/revealwhy-claude-plugin (copied there by scripts/sync-public-plugin.sh in the
+# RevealWhy platform repo). npm provenance links a package to the repository that built it, and package.json's
+# `repository` names this repo, so the release runs here, from a public repo, never from the private platform repo.
+#
+# Nobody tags or publishes by hand: run this workflow (Actions › Release › Run workflow) with the version and the
+# commit of this repo to release. It checks the commit, publishes @revealwhy/mcp-server to npm with provenance, tags
+# mcp-v<version> and creates the GitHub release. Re-running for the same version and commit is safe: each step
+# skips what is already done. Needs the repository secret NPM_TOKEN (npm granular access token, read+write on the
+# @revealwhy scope). See docs/PLUGIN_RELEASE.md in the platform repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 2.4.1 (must equal the package, plugin and marketplace versions at sha)"
+        required: true
+        type: string
+      sha:
+        description: "Full 40-character commit sha of this repo to release"
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # tag + GitHub release
+      id-token: write # npm provenance
+    env:
+      VERSION: ${{ inputs.version }}
+      SHA: ${{ inputs.sha }}
+      TAG: mcp-v${{ inputs.version }}
+    steps:
+      - name: Inputs are well formed
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like 1.2.3, got '$VERSION'"; exit 1; }
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full 40-character commit sha, got '$SHA'"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+
+      - name: The commit is on main
+        run: |
+          git merge-base --is-ancestor "$SHA" origin/main || { echo "::error::$SHA is not on main; merge the sync PR first"; exit 1; }
+
+      - name: Versions at the commit equal the input
+        run: |
+          PKG=$(node -p "require('./mcp-server/package.json').version")
+          PLUGIN=$(node -p "require('./plugins/revealwhy/.claude-plugin/plugin.json').version")
+          MARKET=$(node -p "require('./.claude-plugin/marketplace.json').plugins.find(p => p.name === 'revealwhy').version")
+          if [ "$PKG" != "$VERSION" ] || [ "$PLUGIN" != "$VERSION" ] || [ "$MARKET" != "$VERSION" ]; then
+            echo "::error::input $VERSION, but at $SHA the package is $PKG, the plugin $PLUGIN and the marketplace $MARKET"; exit 1
+          fi
+
+      - name: An existing tag points at the same commit
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            AT=$(git rev-list -n 1 "$TAG")
+            [ "$AT" = "$SHA" ] || { echo "::error::$TAG already exists at $AT, not $SHA; bump the version"; exit 1; }
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Build
+        working-directory: mcp-server
+        run: |
+          npm ci
+          npm run build
+
+      - name: The bundled plugin server is the one this source builds
+        working-directory: mcp-server
+        run: |
+          npm run bundle
+          git diff --exit-code -- ../plugins/revealwhy/server/ || { echo "::error::plugins/revealwhy/server/revealwhy-mcp.mjs does not match mcp-server/src"; exit 1; }
+
+      - name: Publish to npm
+        working-directory: mcp-server
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on npm; skipping publish"
+          else
+            [ -n "$NODE_AUTH_TOKEN" ] || { echo "::error::the NPM_TOKEN repository secret is not set"; exit 1; }
+            npm publish --provenance --access public
+          fi
+
+      - name: Tag
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "$TAG already at $SHA"
+          else
+            git tag "$TAG" "$SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists"
+          else
+            gh release create "$TAG" --verify-tag --title "RevealWhy plugin $VERSION" \
+              --notes "RevealWhy Claude Code plugin and @revealwhy/mcp-server $VERSION (npm: https://www.npmjs.com/package/@revealwhy/mcp-server/v/$VERSION)."
+          fi
