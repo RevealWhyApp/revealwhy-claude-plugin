@@ -69,6 +69,15 @@ export const TOOLS: ToolDef[] = [
     path: (pid) => `/api/analytics/project-status/${enc(pid)}`,
   },
   {
+    name: "get_tracking_snippet",
+    title: "Tracking snippet to install",
+    description:
+      "The project's PUBLISHABLE key and the ready-to-paste script tag that installs RevealWhy on a site (consent-gated by default), plus where it loads from. Use it to connect a site: add scriptTag to every page, then check with get_project_status. The publishable key is public by design (it can only send data, from the project's allowed origins); no secret key is ever returned.",
+    scope: "read:analytics",
+    input: {},
+    path: (pid) => `/api/projects/${enc(pid)}/tracking-snippet`,
+  },
+  {
     name: "get_report",
     title: "Executive report",
     description:
@@ -88,6 +97,33 @@ export const TOOLS: ToolDef[] = [
       trafficClass: z.enum(["human", "ai_agent", "crawler"]).optional().describe("Cohort to count"),
     },
     path: (pid, a) => `/api/traffic${qs({ projectId: pid, days: a.days, trafficClass: a.trafficClass })}`,
+  },
+  {
+    name: "get_trends",
+    title: "Long-range trends",
+    description:
+      "One metric over days, weeks or months from the permanent daily summaries, which outlive raw sessions: sessions, visitors, page views, dwell, bounces, conversions and their value, or element clicks, hovers and dead/rage clicks. Use for 'how has X changed since…', month-over-month or year-over-year questions. Periods with no data are absent, not zero.",
+    scope: "read:analytics",
+    input: {
+      metric: z
+        .enum([
+          "sessions", "visitors", "page_views", "avg_dwell_ms", "bounces", "events", "exposed", "acted",
+          "conversions", "conversion_value", "clicks", "hovers", "dead_clicks", "rage_clicks",
+        ])
+        .describe("What to chart"),
+      granularity: z.enum(["day", "week", "month"]).optional().describe("Bucket size (default day)"),
+      from: date("Start day (default 27 days before `to`)"),
+      to: date("End day (default today, UTC)"),
+      pageKeyId: z.string().optional().describe("Limit to one page (its page key)"),
+      elementKeyId: z.string().optional().describe("Limit to one element (element metrics only)"),
+      source: z.enum(["measured", "simulated", "predicted", "inferred", "all"]).optional().describe("Traffic source (default measured)"),
+      deviceClass: z.enum(["desktop", "mobile", "tablet"]).optional().describe("Limit to one device class"),
+    },
+    path: (pid, a) =>
+      `/api/projects/${enc(pid)}/trends${qs({
+        metric: a.metric, granularity: a.granularity, from: a.from, to: a.to, pageKeyId: a.pageKeyId,
+        elementKeyId: a.elementKeyId, source: a.source, deviceClass: a.deviceClass,
+      })}`,
   },
   {
     name: "get_agent_traffic",

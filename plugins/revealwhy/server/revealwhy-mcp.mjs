@@ -21539,6 +21539,14 @@ var TOOLS = [
     path: (pid) => `/api/analytics/project-status/${enc(pid)}`
   },
   {
+    name: "get_tracking_snippet",
+    title: "Tracking snippet to install",
+    description: "The project's PUBLISHABLE key and the ready-to-paste script tag that installs RevealWhy on a site (consent-gated by default), plus where it loads from. Use it to connect a site: add scriptTag to every page, then check with get_project_status. The publishable key is public by design (it can only send data, from the project's allowed origins); no secret key is ever returned.",
+    scope: "read:analytics",
+    input: {},
+    path: (pid) => `/api/projects/${enc(pid)}/tracking-snippet`
+  },
+  {
     name: "get_report",
     title: "Executive report",
     description: "The site's executive report: KPIs (sessions, conversions, conversion rate), the behavioural stories behind them and the top opportunities. Best single call for 'how is my website doing?' or 'give me a CRO summary'.",
@@ -21556,6 +21564,47 @@ var TOOLS = [
       trafficClass: external_exports.enum(["human", "ai_agent", "crawler"]).optional().describe("Cohort to count")
     },
     path: (pid, a) => `/api/traffic${qs({ projectId: pid, days: a.days, trafficClass: a.trafficClass })}`
+  },
+  {
+    name: "get_trends",
+    title: "Long-range trends",
+    description: "One metric over days, weeks or months from the permanent daily summaries, which outlive raw sessions: sessions, visitors, page views, dwell, bounces, conversions and their value, or element clicks, hovers and dead/rage clicks. Use for 'how has X changed since\u2026', month-over-month or year-over-year questions. Periods with no data are absent, not zero.",
+    scope: "read:analytics",
+    input: {
+      metric: external_exports.enum([
+        "sessions",
+        "visitors",
+        "page_views",
+        "avg_dwell_ms",
+        "bounces",
+        "events",
+        "exposed",
+        "acted",
+        "conversions",
+        "conversion_value",
+        "clicks",
+        "hovers",
+        "dead_clicks",
+        "rage_clicks"
+      ]).describe("What to chart"),
+      granularity: external_exports.enum(["day", "week", "month"]).optional().describe("Bucket size (default day)"),
+      from: date3("Start day (default 27 days before `to`)"),
+      to: date3("End day (default today, UTC)"),
+      pageKeyId: external_exports.string().optional().describe("Limit to one page (its page key)"),
+      elementKeyId: external_exports.string().optional().describe("Limit to one element (element metrics only)"),
+      source: external_exports.enum(["measured", "simulated", "predicted", "inferred", "all"]).optional().describe("Traffic source (default measured)"),
+      deviceClass: external_exports.enum(["desktop", "mobile", "tablet"]).optional().describe("Limit to one device class")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/trends${qs({
+      metric: a.metric,
+      granularity: a.granularity,
+      from: a.from,
+      to: a.to,
+      pageKeyId: a.pageKeyId,
+      elementKeyId: a.elementKeyId,
+      source: a.source,
+      deviceClass: a.deviceClass
+    })}`
   },
   {
     name: "get_agent_traffic",
@@ -21909,7 +21958,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
 ];
 
 // src/index.ts
-var VERSION = "2.3.0";
+var VERSION = "2.4.1";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_KEY = env("API_KEY");
