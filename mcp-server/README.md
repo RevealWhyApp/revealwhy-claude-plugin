@@ -39,12 +39,14 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 Requires Node.js 18 or later.
 
-## Tools (37: 35 read-only, 2 agent-task writes)
+## Tools (39: 35 read-only, 2 agent-task writes, 2 that connect without a key)
 
-Every tool takes an optional `projectId`, which defaults to `REVEALWHY_PROJECT_ID`.
+Every tool except the two connect tools takes an optional `projectId`, which defaults to `REVEALWHY_PROJECT_ID`.
 
 | Area | Tool | What it answers |
 |---|---|---|
+| Connect | `start_free` | No key yet: a link and a short code for the person to approve a free project. Nothing is created until they do |
+| | `start_free_status` | Whether they approved. Once they have, this session has a read-only key for that project |
 | Overview | `get_project_status` | Is tracking healthy and is data processed? |
 | Setup | `get_tracking_snippet` | The publishable key and the script tag to install RevealWhy on a site (never a secret key) |
 | | `get_report` | KPIs, behavioural stories, top opportunities |

@@ -4,12 +4,14 @@
  * the server). Never add a tool here for a route a scoped key cannot reach: it would only ever 401.
  *
  * Every tool is read-only except the two agent-task writes (report_fix, set_finding_status), which need a key with
- * the write:findings scope. Nothing else writes; other write scopes (start/conclude a test, create goals/studies, …)
- * have not shipped; see README "Roadmap".
+ * the write:findings scope, and the two start-free tools, which need no key: they connect this session to a free
+ * project only after the person approves it in the browser. Nothing else writes; other write scopes (start/conclude a
+ * test, create goals/studies, …) have not shipped; see README "Roadmap".
  */
 import { z, type ZodRawShape } from "zod";
 
-export type Scope = "read:analytics" | "read:findings" | "write:findings";
+/** "none": the tool works without a key (start_free / start_free_status connect one). */
+export type Scope = "read:analytics" | "read:findings" | "write:findings" | "none";
 
 export interface ToolDef {
   name: string;
@@ -26,6 +28,8 @@ export interface ToolDef {
   method?: "GET" | "POST" | "PATCH";
   /** JSON body for a write, from the parsed args. */
   body?: (args: Record<string, any>) => Record<string, unknown>;
+  /** Handled inside the MCP server, not as a keyed project call: connecting a session through a free start. */
+  special?: "start_free" | "start_free_status";
 }
 
 export const isWriteTool = (def: ToolDef) => (def.method ?? "GET") !== "GET";
@@ -469,6 +473,29 @@ export const TOOLS: ToolDef[] = [
     scope: "read:findings",
     input: { id: z.string().min(1).describe("Task id (finding id)") },
     path: (pid, a) => `/api/projects/${enc(pid)}/agent-tasks/${enc(a.id)}`,
+  },
+  // ── Connect without a key: start a free project from the conversation (server/routes/free-start.ts) ────────────
+  {
+    name: "start_free",
+    title: "Start RevealWhy free",
+    description:
+      "Use when RevealWhy is not connected yet (no API key). Starts a free RevealWhy project from this conversation, no card: returns a link for the person to sign up or sign in and approve, and a short code they compare with the page. Then call start_free_status until it says connected. Nothing is created until the person approves; the key this session then receives works only for their free project.",
+    scope: "none",
+    method: "POST",
+    input: {},
+    path: () => `/api/free/start`,
+    special: "start_free",
+  },
+  {
+    name: "start_free_status",
+    title: "Finish starting free",
+    description:
+      "After start_free: checks whether the person approved. Call it every few seconds while it says not approved yet. Once approved, this session is connected to their free project and the other tools work at once (the key is also saved for the next session); next, call get_tracking_snippet to add RevealWhy to the site.",
+    scope: "none",
+    method: "POST",
+    input: {},
+    path: () => `/api/free/claim`,
+    special: "start_free_status",
   },
   {
     name: "report_fix",

@@ -1,9 +1,16 @@
 ---
 name: revealwhy-setup
-description: "Set up or troubleshoot the RevealWhy plugin connection: create a scoped API key, configure REVEALWHY_API_KEY and REVEALWHY_PROJECT_ID, verify the connection and the tracking snippet. Use when: RevealWhy not working, 401 or 403 from RevealWhy, connect RevealWhy, install tracking, no data yet, which project ID."
+description: "Set up or troubleshoot the RevealWhy plugin connection: start free from the conversation (start_free), or create a scoped API key, configure REVEALWHY_API_KEY and REVEALWHY_PROJECT_ID, verify the connection and the tracking snippet. Use when: RevealWhy not working, 401 or 403 from RevealWhy, connect RevealWhy, install tracking, no data yet, which project ID."
 ---
 
 # RevealWhy setup
+
+## 0. No account yet? Start free from here
+
+If RevealWhy is not connected (tools answer "REVEALWHY_API_KEY is not set"), call `start_free`. Give the person the
+link and the code it returns; they sign up or sign in and approve in the browser. Then call `start_free_status` every
+few seconds until it says connected. The session gets a read-only key to their one free project (no card), saved for
+the next session; continue with section 1 to install tracking (`get_tracking_snippet`).
 
 ## 1. Account and tracking
 

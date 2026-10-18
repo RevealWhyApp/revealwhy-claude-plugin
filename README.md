@@ -30,7 +30,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 ## What's included
 
 <!-- generated:tools -->
-**37 MCP tools**: 35 read-only, 2 that write (`report_fix`, `set_finding_status`; they need a key with `write:findings` and never change your site).
+**39 MCP tools**: 35 read-only, 2 that write (`report_fix`, `set_finding_status`; they need a key with `write:findings` and never change your site), and 2 that connect a new session without a key (`start_free`, `start_free_status`; the person approves in the browser and the session gets a read-only key).
 
 | Tool | What it does | Access |
 |---|---|---|
@@ -69,6 +69,8 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `get_autopilot` | Autopilot readiness | read (`read:findings`) |
 | `list_agent_tasks` | Agent tasks | read (`read:findings`) |
 | `get_agent_task` | Agent task | read (`read:findings`) |
+| `start_free` | Start RevealWhy free | connects (no key needed) |
+| `start_free_status` | Finish starting free | connects (no key needed) |
 | `report_fix` | Report a fix | **writes** (`write:findings`) |
 | `set_finding_status` | Set task status | **writes** (`write:findings`) |
 <!-- /generated:tools -->
@@ -84,7 +86,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `cta-attention-audit` | Find call-to-action buttons visitors actually SEE but don't click, using measured exposure and attention (not guesswork heatmaps), with a cited expected lift and prerequisite checks. |
 | `funnel-conformance` | Find the exact funnel step where visitors are lost — abandon vs detour — ranked by recoverable conversions, from real journeys on your site. |
 | `revealwhy-install` | Install RevealWhy analytics into the codebase you are working in: detect the framework and the existing cookie-consent setup, add one consent-gated loader module, wire 3–8 key product events, document it in CLAUDE.md, and verify. |
-| `revealwhy-setup` | Set up or troubleshoot the RevealWhy plugin connection: create a scoped API key, configure REVEALWHY_API_KEY and REVEALWHY_PROJECT_ID, verify the connection and the tracking snippet. |
+| `revealwhy-setup` | Set up or troubleshoot the RevealWhy plugin connection: start free from the conversation (start_free), or create a scoped API key, configure REVEALWHY_API_KEY and REVEALWHY_PROJECT_ID, verify the connection and the tracking snippet. |
 <!-- /generated:skills -->
 
 **4 guided prompts** run as slash commands from the MCP server: `site_audit`, `why_not_converting`,
@@ -106,6 +108,11 @@ Claude Code asks for two settings during install:
   my AI assistant" picks the two read scopes for you. Claude Code stores it in its secure credential store.
 - **Project ID** (optional): the default project for every tool.
 
+**No RevealWhy account yet?** Leave both settings empty and ask Claude to *"start RevealWhy free"*. It calls
+`start_free` and gives you a link and a short code. Sign up or sign in, check that the code matches, and approve.
+Claude then connects with a read-only key to your one free project (no card) and keeps it for the next session in
+`~/.config/revealwhy/credentials.json` (readable only by you). A key you configure always takes precedence.
+
 Then ask *"Is RevealWhy working on my site?"* To change the settings later, run
 `/plugin configure revealwhy@revealwhy`.
 
@@ -121,10 +128,11 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 ## Privacy & safety
 
-- **Almost all read-only.** 35 of the 37 tools only read. Two write, and only with a `write:findings` key:
-  `set_finding_status` (e.g. "I'm working on this one") and `report_fix` ("I changed the site"). A reported fix
-  waits for the owner to confirm it in RevealWhy before anything is checked. No tool can change your site,
-  start or stop an experiment, or change your settings.
+- **Almost all read-only.** Two tools write, and only with a `write:findings` key: `set_finding_status` (e.g. "I'm
+  working on this one") and `report_fix` ("I changed the site"). A reported fix waits for the owner to confirm it in
+  RevealWhy before anything is checked. `start_free` and `start_free_status` connect a session that has no key: nothing
+  is created until a signed-in person approves in the browser, and the key they hand over can only read. No tool can
+  change your site, start or stop an experiment, or change your settings.
 - **Scoped keys.** Use a `rw_…` key limited to analytics and findings for one project. It is stored hashed
   and you can revoke it at any time.
 - **One destination.** The MCP server only talks to the RevealWhy API. Results go to Claude only for the
