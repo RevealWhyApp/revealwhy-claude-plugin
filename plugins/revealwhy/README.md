@@ -30,7 +30,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 ## What's included
 
 <!-- generated:tools -->
-**39 MCP tools**: 35 read-only, 2 that write (`report_fix`, `set_finding_status`; they need a key with `write:findings` and never change your site), and 2 that connect a new session without a key (`start_free`, `start_free_status`; the person approves in the browser and the session gets a read-only key).
+**51 MCP tools**: 40 read-only, 9 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `create_study`, `report_fix`, `set_finding_status`; they need a key with `write:findings` or `run:synthetic` as listed below, and never change your site), and 2 that connect a new session without a key (`start_free`, `start_free_status`; the person approves in the browser and the session gets a read-only key).
 
 | Tool | What it does | Access |
 |---|---|---|
@@ -69,6 +69,18 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `get_autopilot` | Autopilot readiness | read (`read:findings`) |
 | `list_agent_tasks` | Agent tasks | read (`read:findings`) |
 | `get_agent_task` | Agent task | read (`read:findings`) |
+| `start_ab_test` | Create an A/B test (draft) | **writes** (`write:findings`) |
+| `set_ab_test_status` | Ask the owner to conclude or archive an A/B test | **writes** (`write:findings`) |
+| `create_goal` | Create a conversion goal | **writes** (`write:findings`) |
+| `list_site_goals` | Site goals | read (`read:findings`) |
+| `confirm_site_goal` | Confirm a site goal | **writes** (`write:findings`) |
+| `get_heatmap` | Page heatmap | read (`read:analytics`) |
+| `get_replay_link` | Session replay link | read (`read:analytics`) |
+| `predict_attention` | Predicted attention for a page | **writes** (`run:synthetic`) |
+| `screen_variants` | Screen variants before traffic | **writes** (`run:synthetic`) |
+| `create_study` | Create a user test (draft) | **writes** (`write:findings`) |
+| `list_studies` | User tests | read (`read:findings`) |
+| `get_study` | One user test | read (`read:findings`) |
 | `start_free` | Start RevealWhy free | connects (no key needed) |
 | `start_free_status` | Finish starting free | connects (no key needed) |
 | `report_fix` | Report a fix | **writes** (`write:findings`) |
@@ -128,11 +140,15 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 ## Privacy & safety
 
-- **Almost all read-only.** Two tools write, and only with a `write:findings` key: `set_finding_status` (e.g. "I'm
-  working on this one") and `report_fix` ("I changed the site"). A reported fix waits for the owner to confirm it in
-  RevealWhy before anything is checked. `start_free` and `start_free_status` connect a session that has no key: nothing
-  is created until a signed-in person approves in the browser, and the key they hand over can only read. No tool can
-  change your site, start or stop an experiment, or change your settings.
+- **Reads by default; writes only with the right scope.** With a `write:findings` key, Claude can report fixes
+  (`set_finding_status`, `report_fix`; a reported fix waits for the owner to confirm it in RevealWhy before anything is
+  checked), create goals (`create_goal`, `confirm_site_goal`), and create A/B tests and user tests (`start_ab_test`,
+  `create_study`) as **drafts**: nothing reaches a visitor or participant until you start it. `set_ab_test_status` only
+  asks: RevealWhy returns an approval link for the owner. With `run:synthetic`, `predict_attention` and
+  `screen_variants` run a model and a simulated panel, labelled Predicted / simulated, never measured. `start_free` and
+  `start_free_status` connect a session that has no key: nothing is created until a signed-in person approves in the
+  browser, and the key they hand over can only read. No tool can change your site or your settings, or start or stop an
+  experiment without your approval.
 - **Scoped keys.** Use a `rw_…` key limited to analytics and findings for one project. It is stored hashed
   and you can revoke it at any time.
 - **One destination.** The MCP server only talks to the RevealWhy API. Results go to Claude only for the

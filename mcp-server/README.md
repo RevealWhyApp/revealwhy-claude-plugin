@@ -39,7 +39,7 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 Requires Node.js 18 or later.
 
-## Tools (39: 35 read-only, 2 agent-task writes, 2 that connect without a key)
+## Tools (51: 40 read-only, 9 writes, 2 that connect without a key)
 
 Every tool except the two connect tools takes an optional `projectId`, which defaults to `REVEALWHY_PROJECT_ID`.
 
@@ -69,8 +69,20 @@ Every tool except the two connect tools takes an optional `projectId`, which def
 | Agent tasks | `list_agent_tasks`, `get_agent_task` | What to fix, in the shared agent-task shape (scope, element, evidence, basis, suggested change, measured impact, status) |
 | | `report_fix` (write) | Tell RevealWhy a fix is live: marks it `fixed` and records what changed and when |
 | | `set_finding_status` (write) | `sent_to_agent`, `fixed`, `dismissed` or `open`. Measured outcomes can't be set. A RevealWhy extension: not part of the shared agent-task contract |
+| Heatmaps, replays & tests | `get_heatmap` | Measured clicks on one page, element by element |
+| | `get_replay_link` | A dashboard link to one session's replay (members only, not a public share) |
+| | `list_site_goals` | The site goals RevealWhy inferred, and which are confirmed |
+| | `list_studies`, `get_study` | User-testing studies, their tasks and status |
+| Actions | `start_ab_test` (write) | Create an A/B test as a draft; nothing reaches visitors until the owner approves the start |
+| | `set_ab_test_status` (write) | Ask to conclude or archive a test; the owner approves it from the link RevealWhy returns |
+| | `create_goal`, `confirm_site_goal` (write) | Configure a conversion goal; confirm, reject or rename an inferred site goal |
+| | `create_study` (write) | Create a user test as a draft; nobody is invited until a project member opens it |
+| Predicted & simulated | `predict_attention` (write, `run:synthetic`) | Where a visitor is likely to look, labelled Predicted (a model, not measured) |
+| | `screen_variants` (write, `run:synthetic`) | Rank 2 to 5 variant URLs before traffic, labelled simulated (at most 10 runs an hour per project) |
 
-The two writes need a key with the `write:findings` scope as well. A task's status runs `open` → `sent_to_agent` →
+The writes need a key with the `write:findings` scope as well (`predict_attention` and `screen_variants` need
+`run:synthetic` instead). A/B tests and studies an assistant creates are drafts, and changing a test's status is the
+owner's approval: nothing reaches a visitor or participant until the owner starts it. A task's status runs `open` → `sent_to_agent` →
 `fixed` → `verifying` → `verified` / `not_improved` / `inconclusive` / `not_enough_data`, or `dismissed`; only
 RevealWhy's measurement sets the last four, and `measured_impact` stays null until it has.
 
