@@ -39,7 +39,7 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
 
 Requires Node.js 18 or later.
 
-## Tools (51: 40 read-only, 9 writes, 2 that connect without a key)
+## Tools (58: 45 read-only, 11 writes, 2 that connect without a key)
 
 Every tool except the two connect tools takes an optional `projectId`, which defaults to `REVEALWHY_PROJECT_ID`.
 
@@ -72,7 +72,7 @@ Every tool except the two connect tools takes an optional `projectId`, which def
 | Heatmaps, replays & tests | `get_heatmap` | Measured clicks on one page, element by element |
 | | `get_replay_link` | A dashboard link to one session's replay (members only, not a public share) |
 | | `list_site_goals` | The site goals RevealWhy inferred, and which are confirmed |
-| | `list_studies`, `get_study` | User-testing studies, their tasks and status |
+| | `list_studies`, `get_study` | Research studies (`create_study`), their tasks and status; camera studies are `list_gaze_studies` |
 | Actions | `start_ab_test` (write) | Create an A/B test as a draft; nothing reaches visitors until the owner approves the start |
 | | `set_ab_test_status` (write) | Ask to conclude or archive a test; the owner approves it from the link RevealWhy returns |
 | | `create_goal`, `confirm_site_goal` (write) | Configure a conversion goal; confirm, reject or rename an inferred site goal |
@@ -80,8 +80,20 @@ Every tool except the two connect tools takes an optional `projectId`, which def
 | Predicted & simulated | `predict_attention` (write, `run:synthetic`) | Where a visitor is likely to look, labelled Predicted (a model, not measured) |
 | | `screen_variants` (write, `run:synthetic`) | Rank 2 to 5 variant URLs before traffic, labelled simulated (at most 10 runs an hour per project) |
 
+| Eye tracking (beta, free) | `get_eye_tracking_status` | Can this project run webcam eye-tracking studies, and if not, which step is missing (plan, switch, availability) |
+| | `list_gaze_studies` | The project's camera studies and their camera mode (not the research studies of `list_studies`) |
+| | `create_gaze_study` (write) | A study that requires the camera, for the public or the site's customers (never employees or students) |
+| | `create_participant_links` (write) | One short link per participant |
+| | `get_gaze_quality` | Per participant: did eye tracking run, its quality band, the device |
+| | `get_gaze_metrics`, `get_gaze_heatmap` | Measured gaze per element and the page heatmap, with quality bands; abstains with a reason when there is not enough data |
+
+The eye-tracking tools need a key with `read:gaze` (reads) and `write:studies` (creating camera studies and
+participant links). Eye tracking is a free beta on the paid plans, and a project member switches it on in **Settings → Eye
+tracking**; turning it on is not something an agent can do. Gaze answers are measured, carry the server's quality band
+and abstain when there is not enough data: report them that way.
+
 The writes need a key with the `write:findings` scope as well (`predict_attention` and `screen_variants` need
-`run:synthetic` instead). A/B tests and studies an assistant creates are drafts, and changing a test's status is the
+`run:synthetic`, and the two eye-tracking study writes `write:studies`, instead). A/B tests and studies an assistant creates are drafts, and changing a test's status is the
 owner's approval: nothing reaches a visitor or participant until the owner starts it. A task's status runs `open` → `sent_to_agent` →
 `fixed` → `verifying` → `verified` / `not_improved` / `inconclusive` / `not_enough_data`, or `dismissed`; only
 RevealWhy's measurement sets the last four, and `measured_impact` stays null until it has.
@@ -130,7 +142,8 @@ This repository is published from the RevealWhy monorepo; open issues here.
 ## Security
 
 - Read-only except `report_fix` and `set_finding_status`, which only move a task through its lifecycle (nothing is
-  deleted, and `set_finding_status open` undoes either) and need the `write:findings` scope.
+  deleted, and `set_finding_status open` undoes either) and need the `write:findings` scope, and
+  `create_gaze_study` / `create_participant_links`, which create a study and its links and need `write:studies`.
 - Use scoped `rw_…` keys, which are hashed at rest and revocable. Avoid the site's tracking key: it is
   embedded in your public pages.
 - Keys are never logged. All traffic goes over HTTPS to the configured API URL only.

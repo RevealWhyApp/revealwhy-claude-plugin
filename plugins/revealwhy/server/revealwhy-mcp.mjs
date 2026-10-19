@@ -21502,6 +21502,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 // src/catalog.ts
+var EYE_TRACKING_LABEL = "Eye tracking (beta, free)";
 var isWriteTool = (def) => (def.method ?? "GET") !== "GET";
 var appUrl = () => (process.env.REVEALWHY_APP_URL || "https://app.revealwhy.com").replace(/\/+$/, "");
 var hostOf = (u) => {
@@ -22082,7 +22083,7 @@ ${JSON.stringify(r, null, 2)}`
   {
     name: "create_study",
     title: "Create a user test (draft)",
-    description: "WRITE. Create a user-testing study as a DRAFT: real people are given a task on the site, recorded, and asked about it. Nobody is invited until a project member opens it in the dashboard. Each participant counts against the plan's tested interviews. Needs a key with write:findings.",
+    description: "WRITE. Create a user-testing study as a DRAFT: real people are given a task on the site, recorded, and asked about it. Nobody is invited until a project member opens it in the dashboard. Each participant counts against the plan's tested interviews. This is a research study (list_studies / get_study), not a camera eye-tracking study: for eye tracking use create_gaze_study. Needs a key with write:findings.",
     scope: "write:findings",
     method: "POST",
     input: {
@@ -22122,7 +22123,7 @@ ${JSON.stringify(r, null, 2)}`
   {
     name: "list_studies",
     title: "User tests",
-    description: "The project's user-testing studies with their status and how many people took part.",
+    description: "The project's research studies (user tests made with create_study) with their status and how many people took part. Camera eye-tracking studies are listed by list_gaze_studies instead.",
     scope: "read:findings",
     input: {},
     path: (pid) => `/api/projects/${enc(pid)}/rep/studies`
@@ -22130,7 +22131,7 @@ ${JSON.stringify(r, null, 2)}`
   {
     name: "get_study",
     title: "One user test",
-    description: "One user-testing study: its questions, tasks and status.",
+    description: "One research study (from list_studies): its questions, tasks and status. Not for camera eye-tracking studies.",
     scope: "read:findings",
     input: { studyId: external_exports.string().min(1).describe("Study id (from list_studies)") },
     path: (pid, a) => `/api/projects/${enc(pid)}/rep/studies/${enc(a.studyId)}`
@@ -22182,11 +22183,89 @@ ${JSON.stringify(r, null, 2)}`
     },
     path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}`,
     body: (a) => ({ status: a.status })
+  },
+  // ── Eye tracking (beta, free) ──────────────────────────────────────────────────────────────────────────────
+  {
+    name: "get_eye_tracking_status",
+    title: `${EYE_TRACKING_LABEL}: status`,
+    description: `${EYE_TRACKING_LABEL}: can this project run webcam eye-tracking studies right now? Returns eyeTracking { entitled, enabled, available, reason }. reason says the missing step, in order: not_entitled (not on this plan: it is included on the paid plans), not_enabled (a project member turns it on in Settings \u2192 Eye tracking), not_ready (temporarily unavailable). Call this before create_gaze_study. Needs read:gaze.`,
+    scope: "read:gaze",
+    input: {},
+    path: (pid) => `/api/projects/${enc(pid)}/gaze/status`
+  },
+  {
+    name: "list_gaze_studies",
+    title: `${EYE_TRACKING_LABEL}: camera studies`,
+    description: `${EYE_TRACKING_LABEL}: the project's camera studies (the ones create_gaze_study makes): id, name, start URL, task, camera mode (off | required | optional) and audience. Their ids go to create_participant_links, get_gaze_quality and get_gaze_heatmap. Not the research studies of create_study / list_studies. Needs read:gaze.`,
+    scope: "read:gaze",
+    input: {},
+    path: (pid) => `/api/projects/${enc(pid)}/studies`
+  },
+  {
+    name: "create_gaze_study",
+    title: `${EYE_TRACKING_LABEL}: create a study`,
+    description: `WRITE. Create a study that REQUIRES the camera, so every participant is eye-tracked (${EYE_TRACKING_LABEL}). Participants see one consent screen first (never pre-ticked); anyone who says no does not take part and nothing is recorded. The camera image never leaves their device. Ask the user who the participants are: only members of the public or the site's customers; never the user's own employees or students (refused). Refused with 409 eye_tracking_unavailable and the missing step when eye tracking is not available here (check get_eye_tracking_status first). Then call create_participant_links. Tell the user to say in their recruitment message, before anyone signs up: "This study uses your camera (eye tracking)." and that it works best on a laptop or desktop in Chrome (mobile is beta). Needs write:studies.`,
+    scope: "write:studies",
+    method: "POST",
+    input: {
+      name: external_exports.string().min(1).max(200).describe('Study name, e.g. "Checkout eye tracking"'),
+      start_url: external_exports.string().url().describe("The page participants start on (on the project's site)"),
+      task: external_exports.string().min(1).max(2e3).describe("What participants are asked to do, in one or two sentences"),
+      audience: external_exports.enum(["general_public", "customers"]).describe("Who the participants are: members of the public, or the site's customers/users")
+    },
+    path: (pid) => `/api/projects/${enc(pid)}/studies`,
+    body: (a) => ({ name: a.name, startUrl: a.start_url, taskText: a.task, audience: a.audience, camera: "required" })
+  },
+  {
+    name: "create_participant_links",
+    title: "Participant links",
+    description: "WRITE. Create one short participant link per participant for a camera study from create_gaze_study or list_gaze_studies, not a research study from create_study (count 1\u2013100; labels P1\u2026PN unless you give one). domains: the site domains the study runs on (the start URL's host). Each link is for one person: share them individually. Needs write:studies.",
+    scope: "write:studies",
+    method: "POST",
+    input: {
+      study_id: external_exports.string().min(1).describe("Camera study id (from create_gaze_study or list_gaze_studies)"),
+      count: external_exports.number().int().min(1).max(100).describe("How many participants"),
+      domains: external_exports.array(external_exports.string().min(1).max(253)).min(1).max(20).describe('Site domains, e.g. ["shop.example.com"]'),
+      label: external_exports.string().max(40).optional().describe("Optional label prefix")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/studies/${enc(a.study_id)}/links`,
+    body: (a) => ({ count: a.count, domains: a.domains, ...a.label ? { label: a.label } : {} })
+  },
+  {
+    name: "get_gaze_quality",
+    title: `${EYE_TRACKING_LABEL}: quality per participant`,
+    description: `${EYE_TRACKING_LABEL}: per participant of a study, whether eye tracking ran (gaze status, with the reason when it failed), the tracking-quality band and the device (mobile is beta). Measured. Use it to say how many participants have usable gaze before quoting any gaze metric. Needs read:gaze.`,
+    scope: "read:gaze",
+    input: { study_id: external_exports.string().min(1).describe("Camera study id (from list_gaze_studies)") },
+    path: (pid, a) => `/api/projects/${enc(pid)}/studies/${enc(a.study_id)}/participants`
+  },
+  {
+    name: "get_gaze_metrics",
+    title: `${EYE_TRACKING_LABEL}: element table for a page`,
+    description: `${EYE_TRACKING_LABEL}: measured gaze per element of one page, pooled across every participant of ALL studies on that page (it takes no study id; for one study's per-element metrics use get_gaze_heatmap with study_id): time to first fixation, first-fixation duration, dwell (raw and quality-weighted), fixations, visits, revisits, share. Each row has a band (trustworthy / directional / not enough data); the page may abstain with a reason. Quote the band with every number and never present "not enough data" as a finding. Desktop only unless include_mobile. Needs read:gaze.`,
+    scope: "read:gaze",
+    input: {
+      page: external_exports.string().min(1).describe("Page URL"),
+      include_mobile: external_exports.boolean().optional().describe("Include mobile participants (beta)")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/gaze/elements${qs({ page: a.page, includeMobile: a.include_mobile ? 1 : void 0 })}`
+  },
+  {
+    name: "get_gaze_heatmap",
+    title: `${EYE_TRACKING_LABEL}: heatmap for a page`,
+    description: `${EYE_TRACKING_LABEL}: the measured gaze heatmap of one page (a grid in page pixels) with per-element metrics and the quality summary, optionally for one study's participants. When there is not enough data it abstains: no heatmap, only the reason (and maybe a preview labelled "not enough data for conclusions"). Measured, not predicted attention. Needs read:gaze.`,
+    scope: "read:gaze",
+    input: {
+      page: external_exports.string().min(1).describe("Page URL"),
+      study_id: external_exports.string().optional().describe("Only this camera study's participants (from list_gaze_studies)"),
+      include_mobile: external_exports.boolean().optional().describe("Include mobile participants (beta)")
+    },
+    path: (pid, a) => `/api/projects/${enc(pid)}/gaze/heatmap${qs({ page: a.page, studyId: a.study_id, includeMobile: a.include_mobile ? 1 : void 0 })}`
   }
 ];
 
 // src/index.ts
-var VERSION = "2.6.0";
+var VERSION = "2.7.1";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, "");

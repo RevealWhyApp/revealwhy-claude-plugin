@@ -30,7 +30,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 ## What's included
 
 <!-- generated:tools -->
-**51 MCP tools**: 40 read-only, 9 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `create_study`, `report_fix`, `set_finding_status`; they need a key with `write:findings` or `run:synthetic` as listed below, and never change your site), and 2 that connect a new session without a key (`start_free`, `start_free_status`; the person approves in the browser and the session gets a read-only key).
+**58 MCP tools**: 45 read-only, 11 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `create_study`, `report_fix`, `set_finding_status`, `create_gaze_study`, `create_participant_links`; they need a key with `write:findings` or `run:synthetic` or `write:studies` as listed below, and never change your site), and 2 that connect a new session without a key (`start_free`, `start_free_status`; the person approves in the browser and the session gets a read-only key).
 
 | Tool | What it does | Access |
 |---|---|---|
@@ -85,10 +85,17 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `start_free_status` | Finish starting free | connects (no key needed) |
 | `report_fix` | Report a fix | **writes** (`write:findings`) |
 | `set_finding_status` | Set task status | **writes** (`write:findings`) |
+| `get_eye_tracking_status` | Eye tracking (beta, free): status | read (`read:gaze`) |
+| `list_gaze_studies` | Eye tracking (beta, free): camera studies | read (`read:gaze`) |
+| `create_gaze_study` | Eye tracking (beta, free): create a study | **writes** (`write:studies`) |
+| `create_participant_links` | Participant links | **writes** (`write:studies`) |
+| `get_gaze_quality` | Eye tracking (beta, free): quality per participant | read (`read:gaze`) |
+| `get_gaze_metrics` | Eye tracking (beta, free): element table for a page | read (`read:gaze`) |
+| `get_gaze_heatmap` | Eye tracking (beta, free): heatmap for a page | read (`read:gaze`) |
 <!-- /generated:tools -->
 
 <!-- generated:skills -->
-**7 skills.** Claude uses these automatically, or you can invoke them by name:
+**8 skills.** Claude uses these automatically, or you can invoke them by name:
 
 | Skill | For |
 |---|---|
@@ -96,6 +103,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `ai-agent-traffic` | Measure how AI assistants and bots (ChatGPT, Claude, Perplexity, Gemini agents, crawlers) visit and read your website versus humans — volume, trend and which pages they read — for AI visibility / GEO (generative engine optimization). |
 | `cro-audit` | Full website conversion (CRO) audit grounded in real visitor behaviour — KPIs, where visitors drop off, ignored CTAs, unread content, and a ranked fix list with evidence, confidence and expected lift. |
 | `cta-attention-audit` | Find call-to-action buttons visitors actually SEE but don't click, using measured exposure and attention (not guesswork heatmaps), with a cited expected lift and prerequisite checks. |
+| `eye-tracking-study` | Run a webcam eye-tracking study on a page with Eye tracking (beta, free): set it up, get one participant link per person, then read measured gaze back with its quality bands. |
 | `funnel-conformance` | Find the exact funnel step where visitors are lost — abandon vs detour — ranked by recoverable conversions, from real journeys on your site. |
 | `revealwhy-install` | Install RevealWhy analytics into the codebase you are working in: detect the framework and the existing cookie-consent setup, add one consent-gated loader module, wire 3–8 key product events, document it in CLAUDE.md, and verify. |
 | `revealwhy-setup` | Set up or troubleshoot the RevealWhy plugin connection: start free from the conversation (start_free), or create a scoped API key, configure REVEALWHY_API_KEY and REVEALWHY_PROJECT_ID, verify the connection and the tracking snippet. |
@@ -116,7 +124,8 @@ Inside Claude Code:
 Claude Code asks for two settings during install:
 
 - **API key**: in RevealWhy, open Settings → Developers → Secret API keys and create a key with scopes `read:analytics`
-  and `read:findings` (add `write:findings` to let Claude report fixes). In RevealWhy, "Make a read-only key for
+  and `read:findings` (add `write:findings` to let Claude report fixes, and `read:gaze` and `write:studies` to run
+  eye-tracking studies). In RevealWhy, "Make a read-only key for
   my AI assistant" picks the two read scopes for you. Claude Code stores it in its secure credential store.
 - **Project ID** (optional): the default project for every tool.
 
@@ -147,8 +156,10 @@ claude mcp add revealwhy --env REVEALWHY_API_KEY=rw_... --env REVEALWHY_PROJECT_
   asks: RevealWhy returns an approval link for the owner. With `run:synthetic`, `predict_attention` and
   `screen_variants` run a model and a simulated panel, labelled Predicted / simulated, never measured. `start_free` and
   `start_free_status` connect a session that has no key: nothing is created until a signed-in person approves in the
-  browser, and the key they hand over can only read. No tool can change your site or your settings, or start or stop an
-  experiment without your approval.
+  browser, and the key they hand over can only read. With `write:studies`, `create_gaze_study` and
+  `create_participant_links` set up a camera (eye-tracking) study; participants consent on their own screen first, and
+  turning eye tracking on for a project stays with its members. No tool can change your site or your settings, or start
+  or stop an experiment without your approval.
 - **Scoped keys.** Use a `rw_…` key limited to analytics and findings for one project. It is stored hashed
   and you can revoke it at any time.
 - **One destination.** The MCP server only talks to the RevealWhy API. Results go to Claude only for the

@@ -21,7 +21,8 @@ Shopify / Webflow / WordPress connections under **Settings → Connections**).
 
 ## 2. Scoped API key
 
-In RevealWhy: **Settings → Developers → Secret API keys → Create key**, scopes **read:analytics** and **read:findings**.
+In RevealWhy: **Settings → Developers → Secret API keys → Create key**, scopes **read:analytics** and **read:findings**
+(add **read:gaze** and **write:studies** to run eye-tracking studies).
 The key starts with `rw_` and is shown once. Prefer this over the site's tracking key, which is public.
 
 Never ask the user to paste the key into the chat; transcripts persist.
