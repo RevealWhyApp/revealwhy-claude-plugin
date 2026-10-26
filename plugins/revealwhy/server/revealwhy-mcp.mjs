@@ -22265,7 +22265,7 @@ ${JSON.stringify(r, null, 2)}`
 ];
 
 // src/index.ts
-var VERSION = "2.7.1";
+var VERSION = "2.7.2";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, "");

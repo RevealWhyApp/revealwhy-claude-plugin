@@ -172,17 +172,15 @@ environment variables apply:
 
 | Variable | Required | Default |
 |---|---|---|
-| `REVEALWHY_API_KEY` | yes | — |
+| `REVEALWHY_API_KEY` | yes, unless you start free (`start_free`) | — |
 | `REVEALWHY_PROJECT_ID` | recommended | — (otherwise pass `projectId` per call) |
 | `REVEALWHY_API_URL` | self-hosted only | `https://api.revealwhy.com` |
 | `REVEALWHY_MAX_RESPONSE_CHARS` | no | `60000` |
 
-## Roadmap
+## Owner approval
 
-Write actions are planned, gated by write-scoped keys: draft a test from a finding, create goals
-and funnels, and launch user-testing studies and synthetic-visitor runs. Until then, use the RevealWhy
-dashboard for those. An API key can only ever create a test as a draft: starting, stopping, concluding or
-archiving one needs the project owner's approval, so the API answers `403 owner_confirm_required` with an
-`approveUrl` the owner opens to confirm.
+An API key can only ever create a test or a study as a draft: starting, stopping, concluding or archiving one
+needs the project owner's approval, so the API answers `403 owner_confirm_required` with an `approveUrl` the owner
+opens to confirm.
 
 MIT licensed · [revealwhy.com](https://revealwhy.com)
