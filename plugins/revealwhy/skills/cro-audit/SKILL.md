@@ -25,12 +25,15 @@ folklore.
 5. **Rank** by people lost / recoverable conversions (finding `impact`, `moneyImpact` when present),
    not by percentage alone. Unresponsive-element bugs jump the queue.
 6. **Deliver** a table of the top 5:
-   | # | Page | Change | Why (mechanism) | Basis · confidence | Expected lift | Prerequisites |
+   | # | Page | Change | Why (mechanism) | Certainty | Expected lift | Prerequisites |
    then 2–3 sentences of narrative and the obvious next step (test it: see `ab-test-readout`).
 
 ## Honesty contract (non-negotiable)
 
-- State each finding's `basis` (proven > observed > principle > simulated) and `confidence`. Never upgrade them.
+- Say how sure each finding is with its `certaintyWord` (A hunch / Likely / Confirmed / Proven), exactly as given:
+  it is the word the owner sees in the RevealWhy dashboard. Never upgrade it, never turn `confidence` into a
+  percentage, and don't derive your own word from `basis`. Name the `basis` in plain words (an A/B test, real
+  visitors, a rule of thumb, AI shoppers, what people said) rather than the raw field value.
 - `expectedLift.basis == "prior"` → "comparable changes lift … in published testing", never "this will
   increase X". Only `rw_calibrated` may be stated as RevealWhy-measured on this site.
 - `prerequisiteChecks` that are `unmet`/`unknown` → say what to verify before shipping.

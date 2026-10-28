@@ -21739,7 +21739,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
   {
     name: "get_content_performance",
     title: "Content performance",
-    description: "Which content blocks are read, skimmed or ignored \u2014 scroll depth, read time and engagement per content element, filterable by page, device, country and date.",
+    description: "Which content blocks are read, skimmed or ignored \u2014 scroll depth, read time and engagement per content element, filterable by page, device or country, and date. A device or country filter returns that segment's own sessions, clicks, read time and engagement; views and conversionRate are null then (not recorded per segment). Country covers each day's top 10 countries. Device and country cannot be combined (400).",
     scope: "read:analytics",
     input: {
       startDate: date3("Start date (YYYY-MM-DD)"),
@@ -21943,17 +21943,17 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
   {
     name: "start_ab_test",
     title: "Create an A/B test (draft)",
-    description: "WRITE. Create an A/B test as a DRAFT: nothing reaches visitors until the project owner approves the start in RevealWhy (the result gives the approval link to send them). Variants change the page in the visitor's browser (text, style, visibility of an element), split 50/50; the verdict waits for enough visitors. Use after a finding suggests a change worth proving. Needs a key with write:findings.",
+    description: "WRITE. Create an A/B test as a DRAFT: nothing reaches visitors until the project owner approves the start in RevealWhy (the result gives the approval link to send them). Variants change the page in the visitor's browser (text, style, visibility of an element), split 50/50; the verdict waits for enough visitors. A test can only start with a goal to count: pass goalId, or make sure the project has at least one goal (list_goals; create_goal adds one). Without one the draft is kept but cannot start. Use after a finding suggests a change worth proving. Needs a key with write:findings.",
     scope: "write:findings",
     method: "POST",
     input: {
       name: external_exports.string().min(1).max(200).describe("What the test checks, in a few words"),
       variants: external_exports.array(external_exports.object({
-        key: external_exports.string().min(1).max(64).describe("control, B, C \u2026"),
+        key: external_exports.string().min(1).max(50).describe("control, B, C \u2026"),
         isControl: external_exports.boolean().optional().describe("Exactly one variant is the control (the page as it is)"),
         spec: external_exports.record(external_exports.string(), external_exports.any()).optional().describe("The change for this variant, e.g. {selector:'h1', text:'New headline'}")
       })).min(2).describe("At least two: the control plus one or more changes"),
-      goalId: external_exports.string().optional().describe("The goal that decides it (from list_goals); default any conversion"),
+      goalId: external_exports.string().optional().describe("The goal that decides it (from list_goals); default any of the project's goals. The test cannot start until the project has a switched-on goal"),
       stopRule: external_exports.enum(["proven", "duration", "visitors", "manual"]).optional().describe("When it stops (default: when proven)"),
       stopValue: external_exports.number().int().positive().optional().describe("Days or visitors, for the duration / visitors rules")
     },
@@ -22265,7 +22265,7 @@ ${JSON.stringify(r, null, 2)}`
 ];
 
 // src/index.ts
-var VERSION = "2.7.2";
+var VERSION = "2.7.6";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
 var API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, "");

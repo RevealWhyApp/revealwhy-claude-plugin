@@ -280,7 +280,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_content_performance",
     title: "Content performance",
     description:
-      "Which content blocks are read, skimmed or ignored — scroll depth, read time and engagement per content element, filterable by page, device, country and date.",
+      "Which content blocks are read, skimmed or ignored — scroll depth, read time and engagement per content element, filterable by page, device or country, and date. A device or country filter returns that segment's own sessions, clicks, read time and engagement; views and conversionRate are null then (not recorded per segment). Country covers each day's top 10 countries. Device and country cannot be combined (400).",
     scope: "read:analytics",
     input: {
       startDate: date("Start date (YYYY-MM-DD)"),
@@ -495,20 +495,20 @@ export const TOOLS: ToolDef[] = [
     name: "start_ab_test",
     title: "Create an A/B test (draft)",
     description:
-      "WRITE. Create an A/B test as a DRAFT: nothing reaches visitors until the project owner approves the start in RevealWhy (the result gives the approval link to send them). Variants change the page in the visitor's browser (text, style, visibility of an element), split 50/50; the verdict waits for enough visitors. Use after a finding suggests a change worth proving. Needs a key with write:findings.",
+      "WRITE. Create an A/B test as a DRAFT: nothing reaches visitors until the project owner approves the start in RevealWhy (the result gives the approval link to send them). Variants change the page in the visitor's browser (text, style, visibility of an element), split 50/50; the verdict waits for enough visitors. A test can only start with a goal to count: pass goalId, or make sure the project has at least one goal (list_goals; create_goal adds one). Without one the draft is kept but cannot start. Use after a finding suggests a change worth proving. Needs a key with write:findings.",
     scope: "write:findings",
     method: "POST",
     input: {
       name: z.string().min(1).max(200).describe("What the test checks, in a few words"),
       variants: z
         .array(z.object({
-          key: z.string().min(1).max(64).describe("control, B, C …"),
+          key: z.string().min(1).max(50).describe("control, B, C …"),
           isControl: z.boolean().optional().describe("Exactly one variant is the control (the page as it is)"),
           spec: z.record(z.string(), z.any()).optional().describe("The change for this variant, e.g. {selector:'h1', text:'New headline'}"),
         }))
         .min(2)
         .describe("At least two: the control plus one or more changes"),
-      goalId: z.string().optional().describe("The goal that decides it (from list_goals); default any conversion"),
+      goalId: z.string().optional().describe("The goal that decides it (from list_goals); default any of the project's goals. The test cannot start until the project has a switched-on goal"),
       stopRule: z.enum(["proven", "duration", "visitors", "manual"]).optional().describe("When it stops (default: when proven)"),
       stopValue: z.number().int().positive().optional().describe("Days or visitors, for the duration / visitors rules"),
     },

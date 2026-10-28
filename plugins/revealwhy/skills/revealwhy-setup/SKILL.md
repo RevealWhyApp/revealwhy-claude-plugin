@@ -16,7 +16,8 @@ the next session; continue with section 1 to install tracking (`get_tracking_sni
 
 RevealWhy needs its tracking snippet on the user's site before any tool returns data. If the site's code is in
 this workspace, install it yourself with the `revealwhy-install` skill. Otherwise send them to
-https://app.revealwhy.com to create a project and copy the snippet from **Settings → Tracking code** (or use the
+https://app.revealwhy.com to add their site (the dashboard calls it a **product**; the API and these tools call it a
+project) and copy the snippet from **Settings → Tracking code** (or use the
 Shopify / Webflow / WordPress connections under **Settings → Connections**).
 
 ## 2. Scoped API key
