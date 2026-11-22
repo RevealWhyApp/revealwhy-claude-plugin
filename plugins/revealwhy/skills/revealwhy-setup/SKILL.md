@@ -9,14 +9,16 @@ description: "Set up or troubleshoot the RevealWhy plugin connection: start free
 
 If RevealWhy is not connected (tools answer "REVEALWHY_API_KEY is not set"), call `start_free`. Give the person the
 link and the code it returns; they sign up or sign in and approve in the browser. Then call `start_free_status` every
-few seconds until it says connected. The session gets a read-only key to their one free project (no card), saved for
-the next session; continue with section 1 to install tracking (`get_tracking_snippet`).
+few seconds until it says connected. The session gets a key to their one free project (no card), saved for the next
+session. It reads; it can also report fixes and run AI shoppers and checks only if the person ticked those boxes when approving
+(otherwise `report_fix` and `start_journey_check` answer 403: ask them to approve a new start with the box ticked, or
+to make a key in Settings › Developers). Continue with section 1 to install tracking (`get_tracking_snippet`).
 
 ## 1. Account and tracking
 
 RevealWhy needs its tracking snippet on the user's site before any tool returns data. If the site's code is in
 this workspace, install it yourself with the `revealwhy-install` skill. Otherwise send them to
-https://app.revealwhy.com to add their site (the dashboard calls it a **product**; the API and these tools call it a
+https://beta.revealwhy.com to add their site (the dashboard calls it a **product**; the API and these tools call it a
 project) and copy the snippet from **Settings → Tracking code** (or use the
 Shopify / Webflow / WordPress connections under **Settings → Connections**).
 
@@ -51,4 +53,4 @@ Call `get_project_status`.
   (Brave / DuckDuckGo send Global Privacy Control by default), an origin the project does not allow, or a wrong
   key. Visits show within a minute; pages and heatmaps ~30 min after a visit ends; findings after ~10 visits.
 
-Self-hosted RevealWhy: also set `REVEALWHY_API_URL` (default `https://api.revealwhy.com`).
+Self-hosted RevealWhy: also set `REVEALWHY_API_URL` (default `https://beta.revealwhy.com`).

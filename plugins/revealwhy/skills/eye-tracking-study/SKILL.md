@@ -1,11 +1,11 @@
 ---
 name: eye-tracking-study
-description: "Run a webcam eye-tracking study on a page with Eye tracking (beta, free): set it up, get one participant link per person, then read measured gaze back with its quality bands. Use when: eye-track participants, eye tracking study, where do people look, did they see the button, gaze heatmap, attention on checkout, webcam study, \"eye-track 10 participants on my checkout\"."
+description: "Run a webcam eye-tracking study on a page with Eye tracking (beta, paid plans): set it up, get one participant link per person, then read measured gaze back with its quality bands. Use when: eye-track participants, eye tracking study, where do people look, did they see the button, gaze heatmap, attention on checkout, webcam study, \"eye-track 10 participants on my checkout\"."
 ---
 
-# Eye-tracking study (beta, free)
+# Eye-tracking study (beta, paid plans)
 
-Measured webcam gaze from real participants who agreed to it. Eye tracking (beta, free) is included on the paid
+Measured webcam gaze from real participants who agreed to it. Eye tracking (beta, paid plans) is included on the paid
 plans; a project member switches it on in RevealWhy (**Settings → Eye tracking**). You cannot switch it on.
 
 ## Set up

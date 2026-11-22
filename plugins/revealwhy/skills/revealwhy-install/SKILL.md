@@ -32,7 +32,7 @@ Find out, from the code:
 ## 2. Ask once (only what is missing)
 
 - The project's publishable key: RevealWhy → Settings → Tracking code → "Publishable key". If the user has
-  no project yet: create one at https://app.revealwhy.com (website URL = the production address; add staging
+  no project yet: create one at https://beta.revealwhy.com (website URL = the production address; add staging
   hosts as allowed origins). You can also leave the key empty and only document the env var.
 - If no consent mechanism exists: "Add a small consent banner (recommended), or record without asking?"
   Default to the banner.
@@ -52,14 +52,17 @@ Rules (they are what make installs work and stay legal):
 5. `?rw_debug=1` in the page URL → `data-debug="true"`: the SDK then shows an on-page badge saying exactly
    why it is or is not recording.
 6. `track()` **drops** events until the script is loaded — never queue actions from before consent.
-7. Load the A/B test runtime with the SDK (`revealwhy-variants.js` + `revealwhy-experiments.js`, same key and
-   endpoint attributes, same consent gate). It does nothing until a test is started in the dashboard, and then
-   the test runs without another code change.
+7. Load the A/B test runtime with the SDK, as the dashboard's tracking code does: `revealwhy-variants.js` (no
+   attributes), then `revealwhy-experiments.js` with the same `data-api-key` and `data-api-endpoint`, behind the
+   same consent gate. It does nothing until a test is started in the dashboard, and then the test runs without
+   another code change. The runtime sends no "ready" signal, so if the owner asks about flicker on a running
+   test, use the timeout-only hide of the element under test from §2f of the install guide
+   (https://beta.revealwhy.com/docs/install.md); never hide the whole page.
 
 Reference shape (TypeScript; adapt names, consent storage and the framework hook):
 
 ```ts
-const ENDPOINT = (process.env.NEXT_PUBLIC_REVEALWHY_ENDPOINT || 'https://app.revealwhy.com').replace(/\/+$/, '');
+const ENDPOINT = (process.env.NEXT_PUBLIC_REVEALWHY_ENDPOINT || 'https://beta.revealwhy.com').replace(/\/+$/, '');
 const KEY = process.env.NEXT_PUBLIC_REVEALWHY_KEY?.trim() || null;
 const SCRIPT_ID = 'revealwhy-sdk';
 const EXCLUDE = ['/admin/*'];                       // from step 1
@@ -87,8 +90,10 @@ export function loadRevealWhy(): boolean {
     const x = document.createElement('script');
     x.async = true;
     x.src = `${ENDPOINT}/${file}`;
-    x.setAttribute('data-api-key', KEY);
-    x.setAttribute('data-api-endpoint', ENDPOINT);
+    if (file === 'revealwhy-experiments.js') {           // it boots itself from these attributes
+      x.setAttribute('data-api-key', KEY);
+      x.setAttribute('data-api-endpoint', ENDPOINT);
+    }
     document.head.appendChild(x);
   }
   return true;

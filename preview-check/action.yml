@@ -1,0 +1,33 @@
+name: RevealWhy preview check
+description: Ask RevealWhy to test a pull request's preview and say the result on the pull request.
+author: RevealWhy
+branding:
+  icon: check-circle
+  color: blue
+inputs:
+  revealwhy-key:
+    description: A RevealWhy key that may run tests (from a repository secret, never written in the workflow).
+    required: true
+  project-id:
+    description: The ID of your product in RevealWhy (not a secret).
+    required: true
+  preview-url:
+    description: The address of the pull request's preview. It must be under a domain you proved to RevealWhy.
+    required: true
+  base-url:
+    description: RevealWhy's address (https). There is no default, so your key goes only where you point it.
+    required: true
+  github-token:
+    description: Used only to write the pull request comment. Without pull-requests write, the result goes to the job summary.
+    required: false
+    default: ${{ github.token }}
+  timeout-minutes:
+    description: How long to wait for the result (1 to 60).
+    required: false
+    default: '30'
+outputs:
+  result:
+    description: works, blocked or could_not_tell
+runs:
+  using: node20
+  main: dist/index.js

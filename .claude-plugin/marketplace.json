@@ -4,31 +4,27 @@
     "name": "RevealWhy",
     "url": "https://revealwhy.com"
   },
-  "description": "RevealWhy plugins for Claude Code: behaviour-grounded website analytics and conversion optimization.",
+  "description": "RevealWhy for Claude Code: test your website with test visitors and send the problems to GitHub or Notion.",
   "plugins": [
     {
       "name": "revealwhy",
       "source": "./plugins/revealwhy",
-      "description": "Ask Claude why your website isn't converting — CRO audits, funnel drop-off, ignored CTAs, A/B test verdicts and AI-agent traffic, grounded in real visitor behaviour.",
-      "version": "2.7.6",
+      "description": "Set up a website, test it with test visitors, read the results, send problems to GitHub or Notion as tickets, and get a report. Works from Claude Code through MCP.",
+      "version": "2.10.0",
       "category": "analytics",
       "keywords": [
-        "analytics",
-        "cro",
-        "conversion",
-        "ux",
-        "funnel",
-        "heatmap",
-        "ab-testing",
-        "ai-traffic"
+        "website-testing",
+        "test-visitors",
+        "github",
+        "notion",
+        "mcp",
+        "analytics"
       ],
       "tags": [
-        "cro",
-        "conversion-rate-optimization",
-        "web-analytics",
-        "ab-testing",
-        "ux",
-        "ai-traffic",
+        "website-testing",
+        "test-visitors",
+        "github",
+        "notion",
         "mcp"
       ],
       "homepage": "https://revealwhy.com",
