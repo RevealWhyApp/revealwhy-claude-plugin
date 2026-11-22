@@ -14,7 +14,7 @@ Copy [examples/revealwhy-check.yml](examples/revealwhy-check.yml) to `.github/wo
 `change me`. In short:
 
 ```yaml
-- uses: RevealWhyApp/revealwhy-claude-plugin/preview-check@<tag>
+- uses: RevealWhyApp/revealwhy-claude-plugin/preview-check@6fbf2a986eef10a8d7ff5b3d941a968ddef9ba22 # 2.10.0
   with:
     revealwhy-key: ${{ secrets.REVEALWHY_KEY }}
     base-url: https://YOUR_REVEALWHY_ADDRESS
@@ -22,7 +22,7 @@ Copy [examples/revealwhy-check.yml](examples/revealwhy-check.yml) to `.github/wo
     preview-url: https://pr-${{ github.event.pull_request.number }}.preview.example.com
 ```
 
-Pin the action to a full commit SHA of a release, and keep the version in a comment after it.
+Pin the action to a full commit SHA, as above (not a tag, which can move), and keep the version in a comment after it. Update the SHA when a newer release is shown on this repository's releases page.
 
 | Input | Required | What it is |
 |---|---|---|
