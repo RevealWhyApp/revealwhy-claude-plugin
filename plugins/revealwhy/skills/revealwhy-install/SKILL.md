@@ -52,9 +52,12 @@ Rules (they are what make installs work and stay legal):
 5. `?rw_debug=1` in the page URL → `data-debug="true"`: the SDK then shows an on-page badge saying exactly
    why it is or is not recording.
 6. `track()` **drops** events until the script is loaded — never queue actions from before consent.
-7. Load the A/B test runtime with the SDK (`revealwhy-variants.js` + `revealwhy-experiments.js`, same key and
-   endpoint attributes, same consent gate). It does nothing until a test is started in the dashboard, and then
-   the test runs without another code change.
+7. Load the A/B test runtime with the SDK, as the dashboard's tracking code does: `revealwhy-variants.js` (no
+   attributes), then `revealwhy-experiments.js` with the same `data-api-key` and `data-api-endpoint`, behind the
+   same consent gate. It does nothing until a test is started in the dashboard, and then the test runs without
+   another code change. The runtime sends no "ready" signal, so if the owner asks about flicker on a running
+   test, use the timeout-only hide of the element under test from §2f of the install guide
+   (https://app.revealwhy.com/docs/install.md); never hide the whole page.
 
 Reference shape (TypeScript; adapt names, consent storage and the framework hook):
 
@@ -87,8 +90,10 @@ export function loadRevealWhy(): boolean {
     const x = document.createElement('script');
     x.async = true;
     x.src = `${ENDPOINT}/${file}`;
-    x.setAttribute('data-api-key', KEY);
-    x.setAttribute('data-api-endpoint', ENDPOINT);
+    if (file === 'revealwhy-experiments.js') {           // it boots itself from these attributes
+      x.setAttribute('data-api-key', KEY);
+      x.setAttribute('data-api-endpoint', ENDPOINT);
+    }
     document.head.appendChild(x);
   }
   return true;

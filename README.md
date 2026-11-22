@@ -30,7 +30,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 ## What's included
 
 <!-- generated:tools -->
-**58 MCP tools**: 45 read-only, 11 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `create_study`, `report_fix`, `set_finding_status`, `create_gaze_study`, `create_participant_links`; they need a key with `write:findings` or `run:synthetic` or `write:studies` as listed below, and never change your site), and 2 that connect a new session without a key (`start_free`, `start_free_status`; the person approves in the browser and the session gets a read-only key).
+**94 MCP tools**: 60 read-only, 31 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `start_journey_check`, `create_study`, `report_fix`, `set_finding_status`, `create_gaze_study`, `create_participant_links`, `check_ownership`, `add_test_copy`, `add_kind`, `describe_kind`, `set_trait_card`, `suggest_test_goals`, `add_test_goal`, `confirm_test_goal`, `make_tester`, `name_test_thing`, `start_test`, `stop_test`, `check_preview`, `send_to_github`, `send_to_notion`, `mark_fix_shipped`, `retest`, `set_schedule`, `pause_schedule`; they need a key with `write:findings` or `run:synthetic` or `write:studies` or `run:tests` or `write:setup` or `write:confirm` or `write:accounts` or `write:tickets` or `write:fix_shipped` as listed below, and never change your site), and 3 that connect a new session without a key (`start_free`, `start_free_status`, `add_product`; the person approves in the browser and the session gets a read-only key).
 
 | Tool | What it does | Access |
 |---|---|---|
@@ -78,6 +78,8 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `get_replay_link` | Session replay link | read (`read:analytics`) |
 | `predict_attention` | Predicted attention for a page | **writes** (`run:synthetic`) |
 | `screen_variants` | Screen variants before traffic | **writes** (`run:synthetic`) |
+| `start_journey_check` | Start a journey check | **writes** (`run:synthetic`) |
+| `get_journey_verdicts` | Journey check verdicts | read (`run:synthetic`) |
 | `create_study` | Create a user test (draft) | **writes** (`write:findings`) |
 | `list_studies` | User tests | read (`read:findings`) |
 | `get_study` | One user test | read (`read:findings`) |
@@ -85,17 +87,51 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `start_free_status` | Finish starting free | connects (no key needed) |
 | `report_fix` | Report a fix | **writes** (`write:findings`) |
 | `set_finding_status` | Set task status | **writes** (`write:findings`) |
-| `get_eye_tracking_status` | Eye tracking (beta, free): status | read (`read:gaze`) |
-| `list_gaze_studies` | Eye tracking (beta, free): camera studies | read (`read:gaze`) |
-| `create_gaze_study` | Eye tracking (beta, free): create a study | **writes** (`write:studies`) |
+| `get_eye_tracking_status` | Eye tracking (beta, paid plans): status | read (`read:gaze`) |
+| `list_gaze_studies` | Eye tracking (beta, paid plans): camera studies | read (`read:gaze`) |
+| `create_gaze_study` | Eye tracking (beta, paid plans): create a study | **writes** (`write:studies`) |
 | `create_participant_links` | Participant links | **writes** (`write:studies`) |
-| `get_gaze_quality` | Eye tracking (beta, free): quality per participant | read (`read:gaze`) |
-| `get_gaze_metrics` | Eye tracking (beta, free): element table for a page | read (`read:gaze`) |
-| `get_gaze_heatmap` | Eye tracking (beta, free): heatmap for a page | read (`read:gaze`) |
+| `get_gaze_quality` | Eye tracking (beta, paid plans): quality per participant | read (`read:gaze`) |
+| `get_gaze_metrics` | Eye tracking (beta, paid plans): element table for a page | read (`read:gaze`) |
+| `get_gaze_heatmap` | Eye tracking (beta, paid plans): heatmap for a page | read (`read:gaze`) |
+| `add_product` | Add a product (free start) | connects (no key needed) |
+| `get_ownership_record` | Ownership record for the site | read (`read:findings`) |
+| `check_ownership` | Check the ownership record | **writes** (`run:tests`) |
+| `list_test_copies` | Test copies of the site | read (`write:setup`) |
+| `add_test_copy` | Add a test copy | **writes** (`write:setup`) |
+| `list_kinds` | Kinds of user | read (`read:findings`) |
+| `add_kind` | Add a kind of user | **writes** (`write:setup`) |
+| `describe_kind` | Describe a kind of user | **writes** (`write:setup`) |
+| `set_trait_card` | Set a trait on a kind's card | **writes** (`write:setup`) |
+| `suggest_test_goals` | Suggest goals for a kind of user | **writes** (`write:setup`) |
+| `add_test_goal` | Add a goal | **writes** (`write:setup`) |
+| `list_test_goals` | Goals of the product | read (`write:setup`) |
+| `confirm_test_goal` | Confirm a goal's steps | **writes** (`write:confirm`) |
+| `make_tester` | Make a RevealWhy tester | **writes** (`write:accounts`) |
+| `list_testers` | RevealWhy testers | read (`write:accounts`) |
+| `name_test_thing` | Name things on a test copy | **writes** (`write:setup`) |
+| `list_test_things` | Named things on a test copy | read (`write:setup`) |
+| `plan_test` | Plan a test: read the estimate | read (`run:tests`) |
+| `start_test` | Start the test | **writes** (`run:tests`) |
+| `stop_test` | Stop a test | **writes** (`run:tests`) |
+| `get_test_progress` | Test progress | read (`read:findings`) |
+| `check_preview` | Test a preview of the site | **writes** (`run:tests`) |
+| `get_test_results` | Test results | read (`read:findings`) |
+| `list_test_issues` | Problems found | read (`read:findings`) |
+| `get_test_issue` | One problem found | read (`read:findings`) |
+| `why_could_not_tell` | Why a goal could not be told | read (`read:findings`) |
+| `send_to_github` | Send a problem to GitHub | **writes** (`write:tickets`) |
+| `send_to_notion` | Send a problem to Notion | **writes** (`write:tickets`) |
+| `mark_fix_shipped` | Report that a fix is shipped | **writes** (`write:fix_shipped`) |
+| `retest` | Test the fixed problems again | **writes** (`run:tests`) |
+| `get_test_report` | Test report (markdown) | read (`read:findings`) |
+| `list_schedules` | Test schedules | read (`read:findings`) |
+| `set_schedule` | Set a test schedule | **writes** (`write:setup`) |
+| `pause_schedule` | Pause a test schedule | **writes** (`write:setup`) |
 <!-- /generated:tools -->
 
 <!-- generated:skills -->
-**8 skills.** Claude uses these automatically, or you can invoke them by name:
+**9 skills.** Claude uses these automatically, or you can invoke them by name:
 
 | Skill | For |
 |---|---|
@@ -103,10 +139,11 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `ai-agent-traffic` | Measure how AI assistants and bots (ChatGPT, Claude, Perplexity, Gemini agents, crawlers) visit and read your website versus humans — volume, trend and which pages they read — for AI visibility / GEO (generative engine optimization). |
 | `cro-audit` | Full website conversion (CRO) audit grounded in real visitor behaviour — KPIs, where visitors drop off, ignored CTAs, unread content, and a ranked fix list with evidence, confidence and expected lift. |
 | `cta-attention-audit` | Find call-to-action buttons visitors actually SEE but don't click, using measured exposure and attention (not guesswork heatmaps), with a cited expected lift and prerequisite checks. |
-| `eye-tracking-study` | Run a webcam eye-tracking study on a page with Eye tracking (beta, free): set it up, get one participant link per person, then read measured gaze back with its quality bands. |
+| `eye-tracking-study` | Run a webcam eye-tracking study on a page with Eye tracking (beta, paid plans): set it up, get one participant link per person, then read measured gaze back with its quality bands. |
 | `funnel-conformance` | Find the exact funnel step where visitors are lost — abandon vs detour — ranked by recoverable conversions, from real journeys on your site. |
 | `revealwhy-install` | Install RevealWhy analytics into the codebase you are working in: detect the framework and the existing cookie-consent setup, add one consent-gated loader module, wire 3–8 key product events, document it in CLAUDE.md, and verify. |
 | `revealwhy-setup` | Set up or troubleshoot the RevealWhy plugin connection: start free from the conversation (start_free), or create a scoped API key, configure REVEALWHY_API_KEY and REVEALWHY_PROJECT_ID, verify the connection and the tracking snippet. |
+| `test-this-project` | Test this project with RevealWhy: drive the whole test flow from here, in the app's order: set up the product, plan and run a test with simulated visitors, read the results, turn problems into GitHub or Notion tickets, report fixes, re-test, write a report and set a schedule. |
 <!-- /generated:skills -->
 
 **4 guided prompts** run as slash commands from the MCP server: `site_audit`, `why_not_converting`,

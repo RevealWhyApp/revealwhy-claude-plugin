@@ -9,7 +9,7 @@
  * start-free tools need no key: they connect this session to a free project only after the person approves it in the
  * browser. Nothing an assistant creates reaches a visitor or participant until the owner starts it.
  *
- * Eye tracking (beta, free): measured webcam gaze from the project's camera studies (create_gaze_study,
+ * Eye tracking (beta, paid plans): measured webcam gaze from the project's camera studies (create_gaze_study,
  * list_gaze_studies; GET/POST /studies). These are not the research studies of create_study / list_studies (REP,
  * /rep/studies). Reads need read:gaze; the two study writes (create_gaze_study, create_participant_links) need
  * write:studies. Every gaze answer carries the server's own honesty fields (quality band, `abstain` with its reason,
@@ -21,7 +21,7 @@ import { z, type ZodRawShape } from "zod";
 export type Scope = "read:analytics" | "read:findings" | "write:findings" | "run:synthetic" | "read:gaze" | "write:studies" | "none";
 
 /** The product's name for the feature, used in every eye-tracking tool. */
-export const EYE_TRACKING_LABEL = "Eye tracking (beta, free)";
+export const EYE_TRACKING_LABEL = "Eye tracking (beta, paid plans)";
 
 export interface ToolDef {
   name: string;
@@ -40,6 +40,8 @@ export interface ToolDef {
   body?: (args: Record<string, any>, projectId: string) => Record<string, unknown>;
   /** Handled inside the MCP server, not as a keyed project call: connecting a session through a free start. */
   special?: "start_free" | "start_free_status";
+  /** From the old product (heatmaps, gaze, conversions, journeys). Kept and working; the new flow's tools are in flow-tools.ts. */
+  legacy?: boolean;
 }
 
 export const isWriteTool = (def: ToolDef) => (def.method ?? "GET") !== "GET";
@@ -75,6 +77,141 @@ const taskStatus = z
   .enum(["open", "sent_to_agent", "fixed", "verifying", "verified", "not_improved", "inconclusive", "not_enough_data", "dismissed"])
   .optional()
   .describe("Filter by status");
+
+/** P-22: the fixed disclaimer every journey verdict carries (the server's JOURNEY_DISCLAIMER; a test keeps them equal). */
+export const JOURNEY_DISCLAIMER =
+  "Automated agents found these issues on this run. This is not an accessibility audit or a certification; a run with no blockers does not mean the journey works for every visitor.";
+
+// ── HAND-04 (R27): text that a website or its visitors wrote is fenced as data ─────────────────────────────────────
+// A button label, a page title, an interview quote or an element's text can say anything, including "ignore your
+// instructions". Every such value leaves this server inside one envelope, and the server instructions tell the
+// assistant that what is inside is data, never instructions. A fence tag inside the text is neutralized, so the text
+// cannot close the envelope early. Mirrored in shared/untrusted.ts (the dashboard's agent prompt); a test keeps the two
+// identical.
+export const UNTRUSTED_OPEN = "<untrusted-data>";
+export const UNTRUSTED_CLOSE = "</untrusted-data>";
+/**
+ * Zero-width and bidi controls (and the soft hyphen): invisible, so they could split a fence tag that still reads as
+ * one. Removed from fenced text (senior review of HAND-04).
+ */
+const INVISIBLE = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+/** A fence tag or a look-alike: "<" or its HTML entity, then untrusted, any space, "_" or "-", data, in any case. */
+const FENCE_TAG = /(<|&lt;|&#0*60;|&#x0*3c;)(\s*\/?\s*)untrusted[\s_-]*data/gi;
+/** A fence tag made inert: only its "<" (or entity) changes, to "‹"; the rest of the text is kept as written. */
+const inert = (m: string): string => `‹${m.startsWith("<") ? m.slice(1) : m.slice(m.indexOf(";") + 1)}`;
+/** The text as it goes inside the fence: NFKC (a fullwidth "＜" reads as "<"), invisible characters removed, any fence
+ *  tag or look-alike made inert. */
+const neutralize = (s: string): string => s.normalize("NFKC").replace(INVISIBLE, "").replace(FENCE_TAG, inert);
+
+/** One value, fenced: `<untrusted-data>…</untrusted-data>`, with any fence tag inside made inert ("<" → "‹"). */
+export function untrusted(value: unknown): string {
+  const s = String(value ?? "");
+  if (s.startsWith(UNTRUSTED_OPEN) && s.endsWith(UNTRUSTED_CLOSE)) {
+    const inner = s.slice(UNTRUSTED_OPEN.length, s.length - UNTRUSTED_CLOSE.length);
+    if (neutralize(inner) === inner) return s; // already fenced by us: idempotent
+  }
+  return `${UNTRUSTED_OPEN}${neutralize(s)}${UNTRUSTED_CLOSE}`;
+}
+
+/**
+ * The response keys that carry page- or visitor-derived text. Server wording (summary, headline, reason, message,
+ * status, basis, certainty words) is NOT here: it is ours and the honesty rules depend on it being read as such. Ids
+ * stay plain. A visited URL or path is fenced (senior review): visitors control query strings and 404 paths; the
+ * value inside the fence is unchanged, so an assistant can still use it.
+ */
+export const UNTRUSTED_KEYS: ReadonlySet<string> = new Set([
+  // element and page text from the site
+  "text", "label", "elementText", "element_text", "elementLabel", "element_label", "innerText", "alt", "placeholder",
+  "pageTitle", "page_title", "title", "selector",
+  // finding text: templated around the element's own words
+  "change", "suggested_change", "suggestedChange", "mechanism", "expectationViolated", "expectation_violated",
+  // what people and agents wrote
+  "quote", "quotes", "transcript", "change_description", "changeDescription",
+  // HAND-03: an agent's report_fix pages and PR link come back on fix.pages / fix.pr_url
+  "pages", "pr_url",
+  // a simulated shopper's own words about the page
+  "blocked", "friction",
+  // visited URLs and paths (visitors control query strings and 404 paths), and recorded selectors
+  "url", "path", "pageUrl", "fromPage", "toPage", "page", "referrer", "elementSelector",
+  // an LLM's words written from the site's pages (suggested goals), and a panel's notes (screen_variants)
+  "description", "notes",
+  // technical details on a test issue (review of #602): the element acted on and a request's failure text come from
+  // the tested site (a console message's script address is ADDRESS_KEYS below)
+  "element", "failure",
+  // review 944 MUST 2: a test issue's fix brief, written from the tested site's data, and one piece of its evidence
+  // a goal's steps in plain words (a draft can be written from the site by a test visitor)
+  "plain_words",
+  "reproSteps", "repro_steps", "expected", "actual", "suggestion", "acceptanceCheck", "acceptance_check", "what",
+]);
+
+/**
+ * Review 944 MUST 2: values whose WHOLE subtree is site-derived or model-written: a test issue's fix brief and evidence,
+ * a ticket preview's packet and rendered body, and suggested goals. Every string inside is fenced, whatever its key,
+ * except ids and hashes (ours, and an agent needs them plain to call the next tool).
+ */
+export const UNTRUSTED_TREE_KEYS: ReadonlySet<string> = new Set([
+  "fix_brief", "fixBrief", "evidence", "packet", "rendered", "goals", "suggestions",
+]);
+const PLAIN_IN_TREE = /^(?:id|hash|.*Id|.*_id|.*Ids|.*_ids)$/;
+
+function fenceTree(data: unknown, depth: number, key: string | null): unknown {
+  if (depth > 40 || data === null) return data;
+  if (typeof data === "string") return data !== "" && !(key && PLAIN_IN_TREE.test(key)) ? untrusted(data) : data;
+  if (typeof data !== "object") return data;
+  if (Array.isArray(data)) return data.map((v) => fenceTree(v, depth + 1, key));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data as Record<string, unknown>)) out[k] = fenceTree(v, depth + 1, k);
+  return out;
+}
+
+/**
+ * Keys fenced only when the value is an address (review of #602): `source` is a console message's script address in
+ * technical details, but also our own wording elsewhere (`source: "ai"`, a traffic source), which stays plain.
+ */
+export const ADDRESS_KEYS: ReadonlySet<string> = new Set(["source"]);
+const isAddress = (v: string) => /^(?:https?|wss?):\/\//i.test(v);
+
+/** Every UNTRUSTED_KEYS string (or string array) in a response, fenced; everything else unchanged. Pure. */
+export function fenceUntrusted<T>(data: T, depth = 0): T {
+  if (depth > 40 || data === null || typeof data !== "object") return data;
+  if (Array.isArray(data)) return data.map((v) => fenceUntrusted(v, depth + 1)) as unknown as T;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+    if (UNTRUSTED_TREE_KEYS.has(k)) out[k] = fenceTree(v, depth + 1, null);
+    else if (UNTRUSTED_KEYS.has(k) && typeof v === "string" && v !== "") out[k] = untrusted(v);
+    else if (ADDRESS_KEYS.has(k) && typeof v === "string" && isAddress(v)) out[k] = untrusted(v);
+    else if (UNTRUSTED_KEYS.has(k) && Array.isArray(v) && v.every((x) => typeof x === "string")) out[k] = v.map((x) => untrusted(x));
+    else out[k] = fenceUntrusted(v, depth + 1);
+  }
+  return out as T;
+}
+
+/** The journey verdicts as text: the server's fixed wording only, site text quoted as data, the disclaimer always last. */
+export function renderJourneyVerdicts(r: any): string {
+  const lines: string[] = [];
+  const v = r?.verdicts;
+  lines.push(`Journey check ${r?.runId ?? ""} (${r?.status ?? "unknown"}${r?.release ? `, release ${r.release}` : ""}), SIMULATED agents.`);
+  if (!v) {
+    lines.push(r?.status === "failed" ? "The check did not finish." : "No verdicts yet: the check is still running.");
+  } else {
+    lines.push(`${v.summary ?? v.headline ?? ""}`);
+    for (const j of v.journeys ?? []) {
+      lines.push("", `Journey ${JSON.stringify(j.name ?? j.journeyId)}: ${j.headline}`); // the owner named it
+      for (const p of j.byPersona ?? []) {
+        lines.push(`  ${p.personaKind}: ${p.summary}`);
+        for (const b of p.blockers ?? []) {
+          lines.push(`    blocker at step ${(b.steps ?? []).join("/") || "?"} on ${b.page ?? "?"}: element ${untrusted(b.element?.label ?? "")} (selector ${b.element?.selector ? untrusted(b.element.selector) : "?"}), seen in ${b.seenIn} of ${b.attempts} attempts`);
+        }
+        for (const u of p.unconfirmed ?? []) {
+          lines.push(`    unconfirmed (seen in ${u.seenIn} of ${u.attempts}): ${untrusted(u.element?.label ?? "")} (selector ${u.element?.selector ? untrusted(u.element.selector) : "?"}) on ${u.page ?? "?"}`);
+        }
+      }
+    }
+  }
+  if (r?.pending) lines.push("", `A newer check is ${r.pending.status} (run ${r.pending.runId}).`);
+  lines.push("", JOURNEY_DISCLAIMER);
+  return lines.join("\n");
+}
 
 export const TOOLS: ToolDef[] = [
   // ── Overview ─────────────────────────────────────────────────────────────────────────────────
@@ -135,7 +272,7 @@ export const TOOLS: ToolDef[] = [
       to: date("End day (default today, UTC)"),
       pageKeyId: z.string().optional().describe("Limit to one page (its page key)"),
       elementKeyId: z.string().optional().describe("Limit to one element (element metrics only)"),
-      source: z.enum(["measured", "simulated", "predicted", "inferred", "all"]).optional().describe("Traffic source (default measured)"),
+      source: z.enum(["measured", "predicted", "inferred", "all"]).optional().describe("Traffic source (default measured). AI walk-throughs (simulated) are never a trend: 'all' leaves them out"),
       deviceClass: z.enum(["desktop", "mobile", "tablet"]).optional().describe("Limit to one device class"),
     },
     path: (pid, a) =>
@@ -280,7 +417,7 @@ export const TOOLS: ToolDef[] = [
     name: "get_content_performance",
     title: "Content performance",
     description:
-      "Which content blocks are read, skimmed or ignored — scroll depth, read time and engagement per content element, filterable by page, device or country, and date. A device or country filter returns that segment's own sessions, clicks, read time and engagement; views and conversionRate are null then (not recorded per segment). Country covers each day's top 10 countries. Device and country cannot be combined (400).",
+      "Which content blocks are read, skimmed or ignored — scroll depth, read time and engagement per content element, filterable by page, device or country, and date. A device or country filter returns that segment's own sessions, clicks, read time and engagement; views and conversionRate are null then (not recorded per segment). Country covers each day's top 10 countries. Device and country cannot be combined (400). engagementScore is 0-100: time on screen, clicks and hovers, and scroll reach. Up to 25 points are reserved for estimated attention, but this rollup has no attention signal, so that part is 0 and scores top out at 75.",
     scope: "read:analytics",
     input: {
       startDate: date("Start date (YYYY-MM-DD)"),
@@ -623,7 +760,7 @@ export const TOOLS: ToolDef[] = [
     name: "screen_variants",
     title: "Screen variants before traffic",
     description:
-      "SIMULATED: rank 2 to 5 variant URLs (the first is the control) from predicted attention and a simulated persona panel, before any real visitor sees them. A screen, not a verdict: prove the winner with start_ab_test. Expensive: at most 10 runs an hour per project with a key. Needs a key with run:synthetic.",
+      "SIMULATED CHECK: an AI walk-through of 2 to 5 variant URLs (the first is the control) before any real visitor sees them: predicted attention and the notes a simulated persona panel wrote on each. It never ranks, scores or picks a winner; call it an AI walk-through or a simulated check, and prove a version with start_ab_test. Expensive: at most 10 runs an hour per project with a key. Needs a key with run:synthetic.",
     scope: "run:synthetic",
     method: "POST",
     input: {
@@ -632,7 +769,56 @@ export const TOOLS: ToolDef[] = [
     },
     path: (pid) => `/api/projects/${enc(pid)}/screening/rank`,
     body: (a) => ({ urls: a.urls, ...(a.goal ? { goal: a.goal } : {}) }),
-    render: (r: any) => `SIMULATED screening (predicted attention + a simulated panel, no real visitors):\n\n${JSON.stringify(r, null, 2)}`,
+    render: (r: any) => `SIMULATED CHECK, an AI walk-through (predicted attention + a simulated panel's notes; no real visitors, no rank, no winner):\n\n${JSON.stringify(r, null, 2)}`,
+  },
+  {
+    name: "start_journey_check",
+    title: "Start a journey check",
+    description:
+      "SIMULATED: start a journey check. AI agents try each journey (a goal plus success criteria the test checks on the page, e.g. 'add a size M shirt to the bag' → URL contains /cart) as a sighted shopper, a keyboard and screen-reader user and an AI shopping agent, 3 times each by default. The agents always stop before payment. Uses the project's saved journeys unless you pass them. Results arrive in a few minutes: read them with get_journey_verdicts. One check at a time per project, at most 6 an hour with a key; each attempt counts as a simulated session. Needs a key with run:synthetic.",
+    scope: "run:synthetic",
+    method: "POST",
+    input: {
+      journeys: z
+        .array(z.object({
+          id: z.string().min(1).max(64).regex(/^[A-Za-z0-9_.-]+$/).describe("Short id, e.g. add-to-bag"),
+          name: z.string().min(1).max(120),
+          goal: z.string().min(3).max(500).describe("What the visitor is trying to do"),
+          startUrl: z.string().url().optional().describe("Where the journey starts (the project's own site); default the site's home page"),
+          success: z.object({
+            urlIncludes: z.array(z.string().min(1)).max(10).optional().describe("Reached when the URL contains one of these"),
+            textIncludes: z.array(z.string().min(1)).max(10).optional().describe("Reached when the page shows one of these texts"),
+          }),
+          maxSteps: z.number().int().min(1).max(30).optional(),
+        }))
+        .min(1)
+        .max(5)
+        .optional()
+        .describe("Journeys to check; omit to use the project's saved journeys"),
+      personaKinds: z.array(z.enum(["sighted", "keyboard", "ai_agent"])).min(1).max(3).optional().describe("Default: all three"),
+      repeats: z.number().int().min(1).max(5).optional().describe("Attempts per journey and persona (default 3)"),
+      release: z.string().max(120).optional().describe("A label for the release under test (tag or commit)"),
+    },
+    path: (pid) => `/api/projects/${enc(pid)}/journeys/trigger`,
+    body: (a) => ({
+      ...(a.journeys ? { journeys: a.journeys } : {}),
+      ...(a.personaKinds ? { personaKinds: a.personaKinds } : {}),
+      ...(a.repeats ? { repeats: a.repeats } : {}),
+      ...(a.release ? { release: a.release } : {}),
+      source: "mcp",
+    }),
+    render: (r: any) =>
+      `Journey check started (run ${r?.runId ?? "?"}, ${r?.attempts ?? "?"} attempts). Read the verdicts with get_journey_verdicts in a few minutes.\n\n${JOURNEY_DISCLAIMER}`,
+  },
+  {
+    name: "get_journey_verdicts",
+    title: "Journey check verdicts",
+    description:
+      "SIMULATED: the latest journey check's verdicts, per journey and persona (sighted, keyboard, ai_agent), with each confirmed blocker's page, element and step. The only verdicts are 'Blockers found', 'Friction found', 'No blockers found on this run' and 'Stopped before payment'; a blocker counts only when it repeats across attempts, otherwise it is listed as unconfirmed. Pass these words on as they are: never say a journey 'works' or is 'accessible' or 'compliant', and always repeat the disclaimer. Needs a key with run:synthetic.",
+    scope: "run:synthetic",
+    input: { runId: z.string().min(1).optional().describe("A specific run (from start_journey_check); default the latest") },
+    path: (pid, a) => `/api/projects/${enc(pid)}/journeys/verdicts${qs({ runId: a.runId })}`,
+    render: renderJourneyVerdicts,
   },
   {
     name: "create_study",
@@ -714,16 +900,25 @@ export const TOOLS: ToolDef[] = [
     name: "report_fix",
     title: "Report a fix",
     description:
-      "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when (status fixed, fix.owner_approval awaiting). Verification does NOT start yet: the owner sees \"Fix reported, awaiting your OK\" in RevealWhy and confirms or undoes it; you cannot confirm it for them. Once the owner confirms, the task moves to verifying: simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days (an A/B test result is never written over a fix under verification). The task ends verified, not_improved, inconclusive or not_enough_data. Call it only after the change is deployed, and tell the owner it is waiting for their OK. Needs a key with the write:findings scope.",
+      "WRITE. Tell RevealWhy a fix for a task is live: records what changed and when (status fixed, fix.owner_approval awaiting). Verification does NOT start yet: the owner sees \"Fix reported, awaiting your OK\" in RevealWhy and confirms or undoes it; you cannot confirm it for them. Once the owner confirms, the task moves to verifying: simulated users re-check the page within minutes (a simulation, not a result), then real visits before vs after the deploy are compared with control pages at 14 and 28 days (an A/B test result is never written over a fix under verification). The task ends verified, not_improved, inconclusive or not_enough_data. When the change touched several pages, list them in pages: each page gets its own before/after verdict (fix.pages) and the task's status is the roll-up (any page that fell → not_improved; every measured page rose → verified; pages with too few visits are named and left out). Optionally give commit_sha and pr_url. Call it only after the change is deployed, and tell the owner it is waiting for their OK. Needs a key with the write:findings scope.",
     scope: "write:findings",
     method: "POST",
     input: {
       id: z.string().min(1).describe("Task id (finding id)"),
       change_description: z.string().min(1).max(2000).describe("What was changed, in one or two sentences"),
       deployed_at: z.string().datetime({ offset: true }).optional().describe("When the change went live (ISO 8601); defaults to now"),
+      commit_sha: z.string().regex(/^[0-9a-fA-F]{7,40}$/).optional().describe("The commit that carries the change"),
+      pr_url: z.string().url().max(500).optional().describe("The pull request that carries the change (an https link on github.com or gitlab.com)"),
+      pages: z.array(z.string().min(1).max(500)).max(10).optional().describe("The pages the change touched (URLs or paths, up to 10); each is measured on its own and the verdicts roll up"),
     },
     path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}/report-fix`,
-    body: (a) => ({ change_description: a.change_description, ...(a.deployed_at ? { deployed_at: a.deployed_at } : {}) }),
+    body: (a) => ({
+      change_description: a.change_description,
+      ...(a.deployed_at ? { deployed_at: a.deployed_at } : {}),
+      ...(a.commit_sha ? { commit_sha: a.commit_sha } : {}),
+      ...(a.pr_url ? { pr_url: a.pr_url } : {}),
+      ...(a.pages?.length ? { pages: a.pages } : {}),
+    }),
   },
   {
     name: "set_finding_status",
@@ -739,7 +934,7 @@ export const TOOLS: ToolDef[] = [
     path: (pid, a) => `/api/projects/${enc(pid)}/findings/${enc(a.id)}`,
     body: (a) => ({ status: a.status }),
   },
-  // ── Eye tracking (beta, free) ──────────────────────────────────────────────────────────────────────────────
+  // ── Eye tracking (beta, paid plans) ──────────────────────────────────────────────────────────────────────────────
   {
     name: "get_eye_tracking_status",
     title: `${EYE_TRACKING_LABEL}: status`,
@@ -824,3 +1019,31 @@ export const TOOLS: ToolDef[] = [
     path: (pid, a) => `/api/projects/${enc(pid)}/gaze/heatmap${qs({ page: a.page, studyId: a.study_id, includeMobile: a.include_mobile ? 1 : undefined })}`,
   },
 ];
+
+// ── MCP lane (spec 19.108): the catalog marks every old-product tool "legacy" ─────────────────────────────────────────
+/**
+ * The tools that still belong to the new flow's own story and are therefore NOT legacy: start_free(_status) (how a
+ * person connects), the grounded visitor-behaviour findings and their fix lifecycle. Every other tool here is from the old
+ * product: it keeps working and now says so in its description and its `legacy` flag. The new flow's tools are in
+ * flow-tools.ts (setup, run, results, fixing, report, automate).
+ */
+export const NOT_LEGACY: ReadonlySet<string> = new Set(["add_product", "start_free", "start_free_status", "list_findings", "get_finding", "get_finding_evidence", "report_fix", "set_finding_status", "list_agent_tasks", "get_agent_task"]);
+for (const t of TOOLS) {
+  if (NOT_LEGACY.has(t.name)) continue;
+  t.legacy = true;
+  if (!t.description.startsWith("(legacy)")) t.description = `(legacy: the old product's tool, kept working; the new test flow has its own tools) ${t.description}`;
+}
+
+/** step 1: a product is made by a signed-in person; the free start is the way a coding agent asks for one. */
+TOOLS.push({
+  name: "add_product",
+  title: "Add a product (free start)",
+  description:
+    "Step 1. A product is made by a person, never by a key (keys belong to one product). This starts a free project the person approves in the browser, then connects this session to it (same as start_free). The person then sets up the site in the app and gives the agent a key (Settings, Coding agents) with the permissions it needs.",
+  scope: "none",
+  method: "POST",
+  input: {},
+  path: () => "",
+  special: "start_free",
+});
+

@@ -9,8 +9,10 @@ description: "Set up or troubleshoot the RevealWhy plugin connection: start free
 
 If RevealWhy is not connected (tools answer "REVEALWHY_API_KEY is not set"), call `start_free`. Give the person the
 link and the code it returns; they sign up or sign in and approve in the browser. Then call `start_free_status` every
-few seconds until it says connected. The session gets a read-only key to their one free project (no card), saved for
-the next session; continue with section 1 to install tracking (`get_tracking_snippet`).
+few seconds until it says connected. The session gets a key to their one free project (no card), saved for the next
+session. It reads; it can also report fixes and run AI shoppers and checks only if the person ticked those boxes when approving
+(otherwise `report_fix` and `start_journey_check` answer 403: ask them to approve a new start with the box ticked, or
+to make a key in Settings › Developers). Continue with section 1 to install tracking (`get_tracking_snippet`).
 
 ## 1. Account and tracking
 
