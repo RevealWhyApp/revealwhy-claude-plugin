@@ -248,7 +248,7 @@ variables apply:
 |---|---|---|
 | `REVEALWHY_API_KEY` | yes, unless you start free (`start_free`) | none |
 | `REVEALWHY_PROJECT_ID` | recommended | none (otherwise pass `projectId` per call) |
-| `REVEALWHY_API_URL` | self-hosted only | `https://api.revealwhy.com` |
+| `REVEALWHY_API_URL` | self-hosted only | `https://beta.revealwhy.com` |
 | `REVEALWHY_MAX_RESPONSE_CHARS` | no | `60000` |
 
 MIT licensed · [revealwhy.com](https://revealwhy.com)

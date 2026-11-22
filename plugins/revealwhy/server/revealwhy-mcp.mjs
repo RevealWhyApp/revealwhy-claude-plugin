@@ -21504,7 +21504,7 @@ import { dirname, join } from "node:path";
 // src/catalog.ts
 var EYE_TRACKING_LABEL = "Eye tracking (beta, paid plans)";
 var isWriteTool = (def) => (def.method ?? "GET") !== "GET";
-var appUrl = () => (process.env.REVEALWHY_APP_URL || "https://app.revealwhy.com").replace(/\/+$/, "");
+var appUrl = () => (process.env.REVEALWHY_APP_URL || "https://beta.revealwhy.com").replace(/\/+$/, "");
 var hostOf = (u) => {
   try {
     return new URL(u).hostname;
@@ -23003,7 +23003,7 @@ var FLOW_STEPS = { setup: setup.map((t) => t.name), run: run.map((t) => t.name),
 var VERSION = "2.10.0";
 var clean = (v) => v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : void 0;
 var env = (name) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
-var API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, "");
+var API_URL = (env("API_URL") || "https://beta.revealwhy.com").replace(/\/+$/, "");
 var CREDENTIALS_FILE = env("CREDENTIALS_FILE") || join(homedir(), ".config", "revealwhy", "credentials.json");
 function savedCredentials() {
   try {

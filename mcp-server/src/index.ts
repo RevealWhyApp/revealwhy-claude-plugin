@@ -22,7 +22,7 @@ export const VERSION = "2.10.0";
 // An unset optional plugin setting can arrive blank or as a literal, unexpanded "${user_config.x}" — treat both as unset.
 const clean = (v: string | undefined) => (v && v.trim() && !/^\$\{.*\}$/.test(v.trim()) ? v.trim() : undefined);
 const env = (name: string) => clean(process.env[`REVEALWHY_${name}`]) || clean(process.env[`INSIGHTFLOW_${name}`]);
-const API_URL = (env("API_URL") || "https://api.revealwhy.com").replace(/\/+$/, "");
+const API_URL = (env("API_URL") || "https://beta.revealwhy.com").replace(/\/+$/, "");
 
 /**
  * Where a key received through start_free is kept for the next session (0600, in a 0700 directory). It is used only

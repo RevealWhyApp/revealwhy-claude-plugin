@@ -145,7 +145,7 @@ never to upgrade them.
 |---|---|
 | `REVEALWHY_API_KEY` | required (legacy `INSIGHTFLOW_API_KEY` accepted) |
 | `REVEALWHY_PROJECT_ID` | none; pass `projectId` per call |
-| `REVEALWHY_API_URL` | `https://api.revealwhy.com` |
+| `REVEALWHY_API_URL` | `https://beta.revealwhy.com` |
 | `REVEALWHY_MAX_RESPONSE_CHARS` | `60000` (larger results are truncated with a note) |
 | `REVEALWHY_FINDINGS_FIXTURE` | dev only: serve the findings tools from a local JSON file |
 

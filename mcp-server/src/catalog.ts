@@ -47,7 +47,7 @@ export interface ToolDef {
 export const isWriteTool = (def: ToolDef) => (def.method ?? "GET") !== "GET";
 
 /** The dashboard a link sends a person to (REVEALWHY_APP_URL, else the hosted app). */
-export const appUrl = () => (process.env.REVEALWHY_APP_URL || "https://app.revealwhy.com").replace(/\/+$/, "");
+export const appUrl = () => (process.env.REVEALWHY_APP_URL || "https://beta.revealwhy.com").replace(/\/+$/, "");
 
 const hostOf = (u: string) => { try { return new URL(u).hostname; } catch { return u; } };
 

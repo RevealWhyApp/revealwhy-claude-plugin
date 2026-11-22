@@ -32,7 +32,7 @@ Find out, from the code:
 ## 2. Ask once (only what is missing)
 
 - The project's publishable key: RevealWhy → Settings → Tracking code → "Publishable key". If the user has
-  no project yet: create one at https://app.revealwhy.com (website URL = the production address; add staging
+  no project yet: create one at https://beta.revealwhy.com (website URL = the production address; add staging
   hosts as allowed origins). You can also leave the key empty and only document the env var.
 - If no consent mechanism exists: "Add a small consent banner (recommended), or record without asking?"
   Default to the banner.
@@ -57,12 +57,12 @@ Rules (they are what make installs work and stay legal):
    same consent gate. It does nothing until a test is started in the dashboard, and then the test runs without
    another code change. The runtime sends no "ready" signal, so if the owner asks about flicker on a running
    test, use the timeout-only hide of the element under test from §2f of the install guide
-   (https://app.revealwhy.com/docs/install.md); never hide the whole page.
+   (https://beta.revealwhy.com/docs/install.md); never hide the whole page.
 
 Reference shape (TypeScript; adapt names, consent storage and the framework hook):
 
 ```ts
-const ENDPOINT = (process.env.NEXT_PUBLIC_REVEALWHY_ENDPOINT || 'https://app.revealwhy.com').replace(/\/+$/, '');
+const ENDPOINT = (process.env.NEXT_PUBLIC_REVEALWHY_ENDPOINT || 'https://beta.revealwhy.com').replace(/\/+$/, '');
 const KEY = process.env.NEXT_PUBLIC_REVEALWHY_KEY?.trim() || null;
 const SCRIPT_ID = 'revealwhy-sdk';
 const EXCLUDE = ['/admin/*'];                       // from step 1
