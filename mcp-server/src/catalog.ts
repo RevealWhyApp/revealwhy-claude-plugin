@@ -1020,7 +1020,7 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
-// ── MCP lane (spec 19.108): the catalog marks every old-product tool "legacy" ─────────────────────────────────────────
+// ── Legacy marking: every tool from the earlier analytics product is flagged "legacy" ──────────────────────────────────────────
 /**
  * The tools that still belong to the new flow's own story and are therefore NOT legacy: start_free(_status) (how a
  * person connects), the grounded visitor-behaviour findings and their fix lifecycle. Every other tool here is from the old

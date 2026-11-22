@@ -1,0 +1,20 @@
+name: RevealWhy check
+on:
+  pull_request:
+permissions: {}
+jobs:
+  check:
+    # No drafts. A pull request from a fork cannot read the secret: the check then writes a note in the job summary that it was skipped.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      pull-requests: write # only to write the comment; take it out to get a job summary instead
+    steps:
+      # Replace the zeros with the full commit SHA of the release you use (see the action's page), keeping the version after #.
+      - uses: RevealWhyApp/revealwhy-claude-plugin/preview-check@0000000000000000000000000000000000000000 # v1
+        with:
+          revealwhy-key: ${{ secrets.REVEALWHY_KEY }}
+          base-url: https://YOUR_REVEALWHY_ADDRESS # change me: RevealWhy's address (https), required
+          project-id: YOUR_PROJECT_ID # change me: shown in RevealWhy, not a secret
+          preview-url: https://pr-${{ github.event.pull_request.number }}.preview.example.com # change me
