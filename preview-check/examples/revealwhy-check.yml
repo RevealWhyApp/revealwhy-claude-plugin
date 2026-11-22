@@ -11,8 +11,8 @@ jobs:
     permissions:
       pull-requests: write # only to write the comment; take it out to get a job summary instead
     steps:
-      # Replace the zeros with the full commit SHA of the release you use (see the action's page), keeping the version after #.
-      - uses: RevealWhyApp/revealwhy-claude-plugin/preview-check@0000000000000000000000000000000000000000 # v1
+      # Pinned to the full commit SHA of release 2.10.0. When a newer release is shown on the action's page, replace the SHA and the version after #.
+      - uses: RevealWhyApp/revealwhy-claude-plugin/preview-check@6fbf2a986eef10a8d7ff5b3d941a968ddef9ba22 # 2.10.0
         with:
           revealwhy-key: ${{ secrets.REVEALWHY_KEY }}
           base-url: https://YOUR_REVEALWHY_ADDRESS # change me: RevealWhy's address (https), required
