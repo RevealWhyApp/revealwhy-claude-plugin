@@ -12,19 +12,19 @@ link and the code it returns; they sign up or sign in and approve in the browser
 few seconds until it says connected. The session gets a key to their one free project (no card), saved for the next
 session. It reads; it can also report fixes and run AI shoppers and checks only if the person ticked those boxes when approving
 (otherwise `report_fix` and `start_journey_check` answer 403: ask them to approve a new start with the box ticked, or
-to make a key in Settings › Developers). Continue with section 1 to install tracking (`get_tracking_snippet`).
+to make a key under Keys at https://my.revealwhy.com/p/<product id>/keys). Continue with section 1 to install tracking (`get_tracking_snippet`).
 
 ## 1. Account and tracking
 
 RevealWhy needs its tracking snippet on the user's site before any tool returns data. If the site's code is in
 this workspace, install it yourself with the `revealwhy-install` skill. Otherwise send them to
-https://beta.revealwhy.com to add their site (the dashboard calls it a **product**; the API and these tools call it a
+https://my.revealwhy.com to add their site (the dashboard calls it a **product**; the API and these tools call it a
 project) and copy the snippet from **Settings → Tracking code** (or use the
 Shopify / Webflow / WordPress connections under **Settings → Connections**).
 
 ## 2. Scoped API key
 
-In RevealWhy: **Settings → Developers → Secret API keys → Create key**, scopes **read:analytics** and **read:findings**
+In RevealWhy: **Keys** (https://my.revealwhy.com/p/<product id>/keys) → **Make a key**, scopes **read:analytics** and **read:findings**
 (add **write:findings** to report fixes and draft tests, goals and user tests, **run:synthetic** for the labelled
 predictions, and **read:gaze** and **write:studies** to run eye-tracking studies).
 The key starts with `rw_` and is shown once. Prefer this over the site's tracking key, which is public.

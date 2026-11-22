@@ -160,7 +160,7 @@ Inside Claude Code:
 
 Claude Code asks for two settings during install:
 
-- **API key**: in RevealWhy, open Settings → Developers → Secret API keys and create a key with scopes `read:analytics`
+- **API key**: in RevealWhy, open Keys (`https://my.revealwhy.com/p/<product id>/keys`) and create a key with scopes `read:analytics`
   and `read:findings` (add `write:findings` to let Claude report fixes, and `read:gaze` and `write:studies` to run
   eye-tracking studies). In RevealWhy, "Make a read-only key for
   my AI assistant" picks the two read scopes for you. Claude Code stores it in its secure credential store.

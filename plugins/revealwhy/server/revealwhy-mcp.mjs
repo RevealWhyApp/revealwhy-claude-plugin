@@ -21504,7 +21504,7 @@ import { dirname, join } from "node:path";
 // src/catalog.ts
 var EYE_TRACKING_LABEL = "Eye tracking (beta, paid plans)";
 var isWriteTool = (def) => (def.method ?? "GET") !== "GET";
-var appUrl = () => (process.env.REVEALWHY_APP_URL || "https://beta.revealwhy.com").replace(/\/+$/, "");
+var appUrl = () => (process.env.REVEALWHY_APP_URL || "https://my.revealwhy.com").replace(/\/+$/, "");
 var hostOf = (u) => {
   try {
     return new URL(u).hostname;
@@ -22095,7 +22095,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
     },
     path: (pid) => `/api/projects/${enc(pid)}/experiments`,
     body: (a) => ({ name: a.name, variants: a.variants, status: "draft", ...a.goalId ? { goalId: a.goalId } : {}, ...a.stopRule ? { stopRule: a.stopRule } : {}, ...a.stopValue ? { stopValue: a.stopValue } : {} }),
-    render: (r) => `Created the A/B test as a DRAFT (id ${r?.id ?? "?"}). No visitor sees it yet. The project owner approves the start here: ${r?.approveUrl ?? `${appUrl()}/app/experiments#exp-${r?.id ?? ""}`}`
+    render: (r, pid) => `Created the A/B test as a DRAFT (id ${r?.id ?? "?"}). No visitor sees it yet. The project owner approves the start here: ${r?.approveUrl ?? `${appUrl()}/p/${enc(pid)}`}`
   },
   {
     name: "set_ab_test_status",
@@ -22180,8 +22180,7 @@ ${Array.isArray(d.insights) && d.insights.length > 0 ? d.insights.map((r) => `- 
     scope: "read:analytics",
     input: { sessionId: external_exports.string().min(1).describe("Session id (from get_visitor_journeys or list_conversion_events)") },
     path: (_pid, a) => `/api/sessions/${enc(a.sessionId)}`,
-    render: (s) => `Replay of session ${s?.id ?? ""}${s?.startTime ? ` (${s.startTime})` : ""}: ${appUrl()}/link/v1/sessions/${enc(String(s?.id ?? ""))}
-It opens in the dashboard for signed-in members of the project.`
+    render: (s, pid) => `Session ${s?.id ?? ""}${s?.startTime ? ` (${s.startTime})` : ""}. The new RevealWhy app has no page for one replay yet; the project's page is ${appUrl()}/p/${enc(pid)} (signed-in members of the project only).`
   },
   {
     name: "predict_attention",
@@ -22297,7 +22296,7 @@ ${JOURNEY_DISCLAIMER}`
         order: { kind: "fixed", task_refs: tasks.map((t) => t.external_ref) }
       };
     },
-    render: (r) => `Created the study as a DRAFT (id ${r?.id ?? "?"}). Nobody is invited yet; a project member opens it here: ${appUrl()}/app/tests`
+    render: (r, pid) => `Created the study as a DRAFT (id ${r?.id ?? "?"}). Nobody is invited yet; a project member opens it here: ${appUrl()}/p/${enc(pid)}/tests`
   },
   {
     name: "list_studies",
@@ -23021,7 +23020,7 @@ var DEFAULT_PROJECT_ID = KEY_SOURCE === "start_free" ? clean(saved.project_id) |
 var keyRejected = false;
 var FINDINGS_FIXTURE = env("FINDINGS_FIXTURE");
 var MAX_CHARS = Number(env("MAX_RESPONSE_CHARS")) || 6e4;
-var SETUP_HINT = "No account yet? Call start_free: it starts a free project (no card) and connects this session. Otherwise set REVEALWHY_API_KEY to a scoped key (RevealWhy \u2192 Settings \u2192 Developers \u2192 Secret API keys, scopes read:analytics + read:findings; add write:findings for report_fix / set_finding_status) and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
+var SETUP_HINT = "No account yet? Call start_free: it starts a free project (no card) and connects this session. Otherwise set REVEALWHY_API_KEY to a scoped key (RevealWhy \u2192 your product \u2192 Keys (https://my.revealwhy.com/p/<product id>/keys), scopes read:analytics + read:findings; add write:findings for report_fix / set_finding_status) and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
 var text = (t, isError = false) => ({ content: [{ type: "text", text: t }], ...isError ? { isError } : {} });
 function cap(s) {
   if (s.length <= MAX_CHARS) return s;
@@ -23065,7 +23064,7 @@ function explainHttpError(status, body, scope, retryAfterHeader) {
   if (status === 403 && json2?.error === "owner_confirm_required" && typeof json2?.approveUrl === "string")
     return `The project owner must approve this (${typeof json2?.action === "string" ? json2.action : "change"}). Nothing changed yet. Send them this link: ${json2.approveUrl}`;
   if (status === 403)
-    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope \u2014 create one under Settings \u2192 Developers \u2192 Secret API keys.`;
+    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope \u2014 create one under your product's Keys (https://my.revealwhy.com/p/<product id>/keys).`;
   if (status === 404) return `Not found (404: ${detail}). Check the project ID and any IDs passed to this tool.`;
   if (status >= 400 && status < 500 && apiDetail !== void 0)
     return `RevealWhy API error ${status}${typeof json2?.code === "string" ? ` (${json2.code})` : ""}: ${apiDetail.slice(0, 500)}`;
@@ -23183,7 +23182,7 @@ async function startFree() {
   }
   if (r.status === 429) return text(`Too many free starts from this network right now. ${waitHint(r.retryAfter)}`, true);
   if (r.status !== 201 || !r.data?.claim_code || !r.data?.verify_url) {
-    return text(`RevealWhy could not start a free project right now (HTTP ${r.status}). Try again in a minute. If it keeps failing, the person can sign up in RevealWhy, create a key in Settings \u2192 Developers and set REVEALWHY_API_KEY.`, true);
+    return text(`RevealWhy could not start a free project right now (HTTP ${r.status}). Try again in a minute. If it keeps failing, the person can sign up in RevealWhy, create a key under Keys (https://my.revealwhy.com/p/<product id>/keys) and set REVEALWHY_API_KEY.`, true);
   }
   const ttl = Number(r.data.expires_in) || 600;
   pendingClaim = { claimCode: r.data.claim_code, userCode: r.data.user_code, verifyUrl: r.data.verify_url, expiresAt: Date.now() + ttl * 1e3 };
@@ -23239,7 +23238,7 @@ async function startFreeStatus() {
     const kept = saveCredentials(r.data.api_key, r.data.project_id);
     const scopes = Array.isArray(r.data.scopes) ? r.data.scopes.join(", ") : "";
     return text(
-      `Connected to the free project ${r.data.project_id}. This session's key works only for that project${scopes ? ` (${scopes})` : ""}; the owner can revoke it any time in RevealWhy \u2192 Settings \u2192 Developers. ${kept ? `It is saved for the next session in ${CREDENTIALS_FILE}.` : "It could not be saved, so it lasts for this session only."}
+      `Connected to the free project ${r.data.project_id}. This session's key works only for that project${scopes ? ` (${scopes})` : ""}; the owner can revoke it any time in RevealWhy \u2192 your product \u2192 Keys (https://my.revealwhy.com/p/<product id>/keys). ${kept ? `It is saved for the next session in ${CREDENTIALS_FILE}.` : "It could not be saved, so it lasts for this session only."}
 Next: call get_tracking_snippet and add that code to the site, then get_project_status shows when the first visits arrive.`
     );
   }
@@ -23263,7 +23262,7 @@ async function runTool(def, args) {
   const r = await apiCall(def.path(projectId, args), def.scope, def.method ?? "GET", def.body?.(args, projectId));
   if (!r.ok) return text(r.error, true);
   const data = fenceUntrusted(r.data);
-  const out = def.render ? def.render(data) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  const out = def.render ? def.render(data, projectId) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
   return text(cap(out));
 }
 var plans = /* @__PURE__ */ new Map();

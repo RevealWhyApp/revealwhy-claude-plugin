@@ -32,7 +32,7 @@ Find out, from the code:
 ## 2. Ask once (only what is missing)
 
 - The project's publishable key: RevealWhy → Settings → Tracking code → "Publishable key". If the user has
-  no project yet: create one at https://beta.revealwhy.com (website URL = the production address; add staging
+  no project yet: create one at https://my.revealwhy.com (website URL = the production address; add staging
   hosts as allowed origins). You can also leave the key empty and only document the env var.
 - If no consent mechanism exists: "Add a small consent banner (recommended), or record without asking?"
   Default to the banner.

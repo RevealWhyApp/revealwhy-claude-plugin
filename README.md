@@ -30,7 +30,7 @@ Inside Claude Code:
 
 Claude Code asks for two settings during install:
 
-- **API key**: in RevealWhy, open Settings → Developers → Secret API keys and create a key. Give it the scopes for
+- **API key**: in RevealWhy, open Keys (`https://my.revealwhy.com/p/<product id>/keys`) and create a key. Give it the scopes for
   what you want Claude to do (the tables below show the scope each tool needs). Claude Code keeps it in its secure
   credential store.
 - **Project ID** (optional): the default project for every tool.

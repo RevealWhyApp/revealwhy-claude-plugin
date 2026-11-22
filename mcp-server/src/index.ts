@@ -53,7 +53,7 @@ const FINDINGS_FIXTURE = env("FINDINGS_FIXTURE");
 const MAX_CHARS = Number(env("MAX_RESPONSE_CHARS")) || 60_000;
 
 const SETUP_HINT =
-  "No account yet? Call start_free: it starts a free project (no card) and connects this session. Otherwise set REVEALWHY_API_KEY to a scoped key (RevealWhy → Settings → Developers → Secret API keys, scopes read:analytics + read:findings; add write:findings for report_fix / set_finding_status) " +
+  "No account yet? Call start_free: it starts a free project (no card) and connects this session. Otherwise set REVEALWHY_API_KEY to a scoped key (RevealWhy → your product → Keys (https://my.revealwhy.com/p/<product id>/keys), scopes read:analytics + read:findings; add write:findings for report_fix / set_finding_status) " +
   "and REVEALWHY_PROJECT_ID to your project ID, then restart Claude Code.";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -116,7 +116,7 @@ function explainHttpError(status: number, body: string, scope: string, retryAfte
   if (status === 403 && json?.error === "owner_confirm_required" && typeof json?.approveUrl === "string")
     return `The project owner must approve this (${typeof json?.action === "string" ? json.action : "change"}). Nothing changed yet. Send them this link: ${json.approveUrl}`;
   if (status === 403)
-    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope — create one under Settings → Developers → Secret API keys.`;
+    return `Access denied (403: ${detail}). The key must belong to this project and carry the "${scope}" scope — create one under your product's Keys (https://my.revealwhy.com/p/<product id>/keys).`;
   if (status === 404) return `Not found (404: ${detail}). Check the project ID and any IDs passed to this tool.`;
   // Known API errors: a 4xx carrying our JSON { error | message, code? } is safe and useful to show.
   if (status >= 400 && status < 500 && apiDetail !== undefined)
@@ -281,7 +281,7 @@ async function startFree(): Promise<ToolResult> {
   }
   if (r.status === 429) return text(`Too many free starts from this network right now. ${waitHint(r.retryAfter)}`, true);
   if (r.status !== 201 || !r.data?.claim_code || !r.data?.verify_url) {
-    return text(`RevealWhy could not start a free project right now (HTTP ${r.status}). Try again in a minute. If it keeps failing, the person can sign up in RevealWhy, create a key in Settings → Developers and set REVEALWHY_API_KEY.`, true);
+    return text(`RevealWhy could not start a free project right now (HTTP ${r.status}). Try again in a minute. If it keeps failing, the person can sign up in RevealWhy, create a key under Keys (https://my.revealwhy.com/p/<product id>/keys) and set REVEALWHY_API_KEY.`, true);
   }
   const ttl = Number(r.data.expires_in) || 600;
   pendingClaim = { claimCode: r.data.claim_code, userCode: r.data.user_code, verifyUrl: r.data.verify_url, expiresAt: Date.now() + ttl * 1000 };
@@ -341,7 +341,7 @@ async function startFreeStatus(): Promise<ToolResult> {
     const scopes = Array.isArray(r.data.scopes) ? r.data.scopes.join(", ") : "";
     return text(
       `Connected to the free project ${r.data.project_id}. This session's key works only for that project${scopes ? ` (${scopes})` : ""}; ` +
-        `the owner can revoke it any time in RevealWhy → Settings → Developers. ` +
+        `the owner can revoke it any time in RevealWhy → your product → Keys (https://my.revealwhy.com/p/<product id>/keys). ` +
         `${kept ? `It is saved for the next session in ${CREDENTIALS_FILE}.` : "It could not be saved, so it lasts for this session only."}\n` +
         `Next: call get_tracking_snippet and add that code to the site, then get_project_status shows when the first visits arrive.`,
     );
@@ -370,7 +370,7 @@ async function runTool(def: ToolDef, args: Record<string, any>): Promise<ToolRes
   if (!r.ok) return text(r.error, true);
   // HAND-04: page- and visitor-derived text is fenced before any renderer or the JSON dump sees it
   const data = fenceUntrusted(r.data);
-  const out = def.render ? def.render(data) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  const out = def.render ? def.render(data, projectId) : typeof data === "string" ? data : JSON.stringify(data, null, 2);
   return text(cap(out));
 }
 

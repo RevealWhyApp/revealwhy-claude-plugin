@@ -33,7 +33,7 @@ export interface ToolDef {
   /** Build the request path (with query string) from the parsed args + resolved projectId. */
   path: (projectId: string, args: Record<string, any>) => string;
   /** Optional human-readable renderer; default is pretty JSON. */
-  render?: (data: any) => string;
+  render?: (data: any, projectId: string) => string;
   /** HTTP method; default GET. Anything else is a write (annotated readOnlyHint false). */
   method?: "GET" | "POST" | "PATCH";
   /** JSON body for a write, from the parsed args (and the resolved project, for routes that take it in the body). */
@@ -47,7 +47,7 @@ export interface ToolDef {
 export const isWriteTool = (def: ToolDef) => (def.method ?? "GET") !== "GET";
 
 /** The dashboard a link sends a person to (REVEALWHY_APP_URL, else the hosted app). */
-export const appUrl = () => (process.env.REVEALWHY_APP_URL || "https://beta.revealwhy.com").replace(/\/+$/, "");
+export const appUrl = () => (process.env.REVEALWHY_APP_URL || "https://my.revealwhy.com").replace(/\/+$/, "");
 
 const hostOf = (u: string) => { try { return new URL(u).hostname; } catch { return u; } };
 
@@ -651,8 +651,8 @@ export const TOOLS: ToolDef[] = [
     },
     path: (pid) => `/api/projects/${enc(pid)}/experiments`,
     body: (a) => ({ name: a.name, variants: a.variants, status: "draft", ...(a.goalId ? { goalId: a.goalId } : {}), ...(a.stopRule ? { stopRule: a.stopRule } : {}), ...(a.stopValue ? { stopValue: a.stopValue } : {}) }),
-    render: (r: any) =>
-      `Created the A/B test as a DRAFT (id ${r?.id ?? "?"}). No visitor sees it yet. The project owner approves the start here: ${r?.approveUrl ?? `${appUrl()}/app/experiments#exp-${r?.id ?? ""}`}`,
+    render: (r: any, pid: string) =>
+      `Created the A/B test as a DRAFT (id ${r?.id ?? "?"}). No visitor sees it yet. The project owner approves the start here: ${r?.approveUrl ?? `${appUrl()}/p/${enc(pid)}`}`,
   },
   {
     name: "set_ab_test_status",
@@ -737,8 +737,8 @@ export const TOOLS: ToolDef[] = [
     scope: "read:analytics",
     input: { sessionId: z.string().min(1).describe("Session id (from get_visitor_journeys or list_conversion_events)") },
     path: (_pid, a) => `/api/sessions/${enc(a.sessionId)}`,
-    render: (s: any) =>
-      `Replay of session ${s?.id ?? ""}${s?.startTime ? ` (${s.startTime})` : ""}: ${appUrl()}/link/v1/sessions/${enc(String(s?.id ?? ""))}\nIt opens in the dashboard for signed-in members of the project.`,
+    render: (s: any, pid: string) =>
+      `Session ${s?.id ?? ""}${s?.startTime ? ` (${s.startTime})` : ""}. The new RevealWhy app has no page for one replay yet; the project's page is ${appUrl()}/p/${enc(pid)} (signed-in members of the project only).`,
   },
   {
     name: "predict_attention",
@@ -854,7 +854,7 @@ export const TOOLS: ToolDef[] = [
         tasks, order: { kind: "fixed", task_refs: tasks.map((t) => t.external_ref) },
       };
     },
-    render: (r: any) => `Created the study as a DRAFT (id ${r?.id ?? "?"}). Nobody is invited yet; a project member opens it here: ${appUrl()}/app/tests`,
+    render: (r: any, pid: string) => `Created the study as a DRAFT (id ${r?.id ?? "?"}). Nobody is invited yet; a project member opens it here: ${appUrl()}/p/${enc(pid)}/tests`,
   },
   {
     name: "list_studies",
