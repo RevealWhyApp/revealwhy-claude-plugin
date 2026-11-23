@@ -13,10 +13,10 @@ import { z } from "zod";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { TOOLS, isWriteTool, fenceUntrusted, type ToolDef } from "./catalog.js";
+import { TOOLS, isWriteTool, fenceUntrusted, untrusted, type ToolDef } from "./catalog.js";
 import { FLOW_TOOLS, type FlowCtx, type FlowMethod, type Plan, type FlowTool } from "./flow-tools.js";
 
-export const VERSION = "2.10.0";
+export const VERSION = "2.11.0";
 
 // Environment — REVEALWHY_* is preferred; legacy INSIGHTFLOW_* names still work as a fallback.
 // An unset optional plugin setting can arrive blank or as a literal, unexpanded "${user_config.x}" — treat both as unset.
@@ -29,7 +29,7 @@ const API_URL = (env("API_URL") || "https://beta.revealwhy.com").replace(/\/+$/,
  * for the same API_URL, and a configured REVEALWHY_API_KEY always wins: this file never replaces it.
  */
 const CREDENTIALS_FILE = env("CREDENTIALS_FILE") || join(homedir(), ".config", "revealwhy", "credentials.json");
-function savedCredentials(): { api_key?: string; project_id?: string } {
+function savedCredentials(): { api_key?: string; project_id?: string; via?: string } {
   try {
     if (!existsSync(CREDENTIALS_FILE)) return {};
     const c = JSON.parse(readFileSync(CREDENTIALS_FILE, "utf8"));
@@ -42,6 +42,8 @@ const saved = env("API_KEY") ? {} : savedCredentials();
 let API_KEY = env("API_KEY") || clean(saved.api_key);
 /** Where the key came from: a configured key is the person's; a saved or claimed one start_free may replace. */
 let KEY_SOURCE: "env" | "start_free" | null = env("API_KEY") ? "env" : API_KEY ? "start_free" : null;
+/** How a saved key was got (review of A2, S2): a sign-in's key is renewed by sign_in, a free start's by start_free. */
+let KEY_VIA: "sign_in" | "start_free" = saved.via === "sign_in" ? "sign_in" : "start_free";
 // A start_free key is bound to its own project: it is paired with the project saved beside it, never another one.
 let DEFAULT_PROJECT_ID = KEY_SOURCE === "start_free" ? clean(saved.project_id) || env("PROJECT_ID") : env("PROJECT_ID");
 /** The last keyed call answered 401: a revoked or expired start_free key, which start_free may then replace. */
@@ -159,7 +161,9 @@ async function apiCall(
   if (res.status === 401) keyRejected = true;
   else if (res.ok) keyRejected = false;
   if (res.status === 401 && KEY_SOURCE === "start_free") {
-    return { ok: false, error: "RevealWhy no longer accepts the key this session got from start_free (it was revoked or expired). Call start_free to connect again." };
+    return KEY_VIA === "sign_in"
+      ? { ok: false, error: "RevealWhy no longer accepts the key this session got from sign_in (it was revoked or expired). Call sign_in to sign in again." }
+      : { ok: false, error: "RevealWhy no longer accepts the key this session got from start_free (it was revoked or expired). Call start_free to connect again." };
   }
   if (!res.ok) return { ok: false, error: explainHttpError(res.status, payload, scope, res.headers.get("retry-after")) };
   try {
@@ -218,8 +222,11 @@ const server = new McpServer(
       "TO TEST A PROJECT (the new flow, in the app's order): setup (get_ownership_record, check_ownership, list_kinds, add_kind, describe_kind, list_test_goals, add_test_goal, make_tester), run (plan_test, then start_test with its plan_id, get_test_progress), results (get_test_results, list_test_issues, get_test_issue, why_could_not_tell), fixing (send_to_github or send_to_notion: preview first, then send with the hash; mark_fix_shipped; retest), report (get_test_report), automate (set_schedule, pause_schedule). " +
       "Rules: read plan_test's estimate and show it to the person before start_test; never describe a test visitor as a real visitor (they are simulated); a result with only counts stays counts; could not tell is never a pass; not checked is never a pass. " +
       "You cannot turn on a live-site switch or a test-payment tick, confirm a goal, or give a password: those are the owner's, in the app. Every call you make shows in the app under Recent agent actions. Tools marked (legacy) are the old product's; they keep working. " +
-      "Not connected yet? Call start_free (a free project, no card), give the person the link, then call start_free_status until they approve; " +
-      "after that, get_tracking_snippet gives the code to add to the site.",
+      "Not connected yet? If the person has a RevealWhy account, call sign_in (one link; they pick the product and tick what you may do), then sign_in_status until they approve. " +
+      "With no account, call start_free (a free project, no card), give the person the link, then call start_free_status until they approve; " +
+      "after that, get_tracking_snippet gives the code to add to the site. " +
+      "\"Connect my Notion\" or \"connect GitHub\": call connect_notion or connect_github, give the person the one link, then connection_status. " +
+      "Never ask the person for a key, token or password, and never paste one into the chat: every connection is approved in the browser.",
   },
 );
 
@@ -233,7 +240,10 @@ const projectIdInput = z
 // start_free asks the API for a one-time claim code (kept only in this process, never shown) and a short code + link
 // for the person. They sign up or in and approve in the browser; start_free_status presents the claim code and, on
 // approval, receives a key limited to their free project, exactly once. The key never travels in a URL.
-let pendingClaim: { claimCode: string; userCode: string; verifyUrl: string; expiresAt: number } | null = null;
+// sign_in / sign_in_status (spec 19.129) are the same flow for an EXISTING account: mode "sign_in", the person picks
+// their product and ticks what the assistant may do. Only one start waits at a time, whichever kind.
+type Mode = "free" | "sign_in";
+let pendingClaim: { claimCode: string; userCode: string; verifyUrl: string; expiresAt: number; mode: Mode } | null = null;
 
 async function publicPost(path: string, body: Record<string, unknown>): Promise<{ status: number; data: any; retryAfter: string | null }> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -258,10 +268,12 @@ const waitHint = (retryAfter: string | null) => {
   return s !== undefined ? `Try again in ${s < 120 ? `${s} s` : `${Math.ceil(s / 60)} min`}.` : "Try again in a while.";
 };
 
-async function startFree(): Promise<ToolResult> {
+const statusTool = (m: Mode) => (m === "sign_in" ? "sign_in_status" : "start_free_status");
+
+async function startFree(mode: Mode = "free", scopes: string[] = []): Promise<ToolResult> {
   // A start already waiting: the same link again, rather than a second start (5 an hour per network).
   if (pendingClaim && Date.now() < pendingClaim.expiresAt) {
-    return text(`A start is already waiting for approval. The person approves at ${pendingClaim.verifyUrl} (code ${pendingClaim.userCode}); then call start_free_status.`);
+    return text(`A ${pendingClaim.mode === "sign_in" ? "sign-in" : "start"} is already waiting for approval. The person approves at ${pendingClaim.verifyUrl} (code ${pendingClaim.userCode}); then call ${statusTool(pendingClaim.mode)}.`);
   }
   // A start_free key the API has since refused may be replaced; a configured key never is.
   if (API_KEY && KEY_SOURCE === "start_free" && keyRejected) {
@@ -269,22 +281,35 @@ async function startFree(): Promise<ToolResult> {
     KEY_SOURCE = null;
     DEFAULT_PROJECT_ID = env("PROJECT_ID");
   }
-  if (API_KEY) {
+  // A sign-in may replace a saved key (to another product, or with more permissions); a configured key never.
+  if (API_KEY && (mode === "free" || KEY_SOURCE === "env")) {
     return text(`RevealWhy is already connected in this session${DEFAULT_PROJECT_ID ? ` (project ${DEFAULT_PROJECT_ID})` : ""}. Use the other tools directly; get_tracking_snippet gives the code for the site.`);
   }
   let r: Awaited<ReturnType<typeof publicPost>>;
   try {
-    r = await publicPost("/api/free/start", { client: "Claude (MCP)" });
+    r = await publicPost("/api/free/start", mode === "sign_in" ? { client: "Claude (MCP)", mode, ...(scopes.length ? { scopes } : {}) } : { client: "Claude (MCP)" });
   } catch (e) {
     logError("start_free request failed", e);
     return unreachable();
   }
-  if (r.status === 429) return text(`Too many free starts from this network right now. ${waitHint(r.retryAfter)}`, true);
+  if (r.status === 429) return text(`Too many ${mode === "sign_in" ? "sign-ins" : "free starts"} from this network right now. ${waitHint(r.retryAfter)}`, true);
+  if (mode === "sign_in" && (r.status !== 201 || !r.data?.claim_code || !r.data?.verify_url || r.data?.mode !== "sign_in")) {
+    // an older server ignores the mode: never hand the person a free-start page when they asked to sign in
+    return text(`RevealWhy could not start a sign-in right now (HTTP ${r.status}). Try again in a minute.`, true);
+  }
   if (r.status !== 201 || !r.data?.claim_code || !r.data?.verify_url) {
     return text(`RevealWhy could not start a free project right now (HTTP ${r.status}). Try again in a minute. If it keeps failing, the person can sign up in RevealWhy, create a key under Keys (https://my.revealwhy.com/p/<product id>/keys) and set REVEALWHY_API_KEY.`, true);
   }
   const ttl = Number(r.data.expires_in) || 600;
-  pendingClaim = { claimCode: r.data.claim_code, userCode: r.data.user_code, verifyUrl: r.data.verify_url, expiresAt: Date.now() + ttl * 1000 };
+  pendingClaim = { claimCode: r.data.claim_code, userCode: r.data.user_code, verifyUrl: r.data.verify_url, expiresAt: Date.now() + ttl * 1000, mode };
+  if (mode === "sign_in") {
+    return text(
+      `Ask the person to open this link, sign in, pick their product and approve: ${pendingClaim.verifyUrl}\n` +
+        `The page shows the code ${pendingClaim.userCode}; it must match. The link works for ${Math.round(ttl / 60)} minutes` +
+        `${scopes.length ? `, and the permissions you asked for can be ticked in the first 5` : ""}.\n` +
+        `Then call sign_in_status every few seconds until it says signed in.`,
+    );
+  }
   return text(
     `Ask the person to open this link, sign up or sign in, and approve: ${pendingClaim.verifyUrl}\n` +
       `The page shows the code ${pendingClaim.userCode}; it must match. The link works for ${Math.round(ttl / 60)} minutes.\n` +
@@ -292,7 +317,7 @@ async function startFree(): Promise<ToolResult> {
   );
 }
 
-function saveCredentials(apiKey: string, projectId: string): boolean {
+function saveCredentials(apiKey: string, projectId: string, via: Mode): boolean {
   try {
     // `mode` applies only when a file or directory is CREATED: an existing 0644 file or 0755 directory would keep its
     // permissions. So write a fresh 0600 temp file, chmod both, and rename it into place (atomic on one filesystem).
@@ -300,7 +325,7 @@ function saveCredentials(apiKey: string, projectId: string): boolean {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     try { chmodSync(dir, 0o700); } catch { /* a shared parent we do not own: the file itself is still 0600 */ }
     const tmp = `${CREDENTIALS_FILE}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ api_key: apiKey, project_id: projectId, api_url: API_URL }, null, 2), { mode: 0o600, flag: "w" });
+    writeFileSync(tmp, JSON.stringify({ api_key: apiKey, project_id: projectId, api_url: API_URL, via: via === "sign_in" ? "sign_in" : "start_free" }, null, 2), { mode: 0o600, flag: "w" });
     chmodSync(tmp, 0o600);
     renameSync(tmp, CREDENTIALS_FILE);
     return true;
@@ -310,15 +335,34 @@ function saveCredentials(apiKey: string, projectId: string): boolean {
   }
 }
 
-async function startFreeStatus(): Promise<ToolResult> {
-  if (!pendingClaim) {
+const PLAIN_SCOPES: Record<string, string> = {
+  "read:analytics": "read results",
+  "read:findings": "read problems",
+  "write:findings": "report fixes",
+  "run:tests": "run tests",
+  "write:setup": "set the product up",
+  "write:accounts": "make test accounts",
+  "write:tickets": "send problems to GitHub or Notion",
+  "write:fix_shipped": "mark fixes shipped",
+  "run:synthetic": "run AI shoppers",
+};
+/** "read results, read problems and run tests" */
+export function plainScopes(scopes: readonly string[]): string {
+  const w = scopes.map((s) => PLAIN_SCOPES[s] ?? s);
+  return w.length <= 1 ? w.join("") : `${w.slice(0, -1).join(", ")} and ${w[w.length - 1]}`;
+}
+
+async function startFreeStatus(mode: Mode = "free"): Promise<ToolResult> {
+  const startTool = mode === "sign_in" ? "sign_in" : "start_free";
+  if (!pendingClaim || pendingClaim.mode !== mode) {
+    if (pendingClaim) return text(`What is waiting is a ${pendingClaim.mode === "sign_in" ? "sign-in" : "free start"}: call ${statusTool(pendingClaim.mode)}.`, true);
     return API_KEY
       ? text(`RevealWhy is connected in this session${DEFAULT_PROJECT_ID ? ` (project ${DEFAULT_PROJECT_ID})` : ""}. Nothing is waiting.`)
-      : text("Nothing is waiting for approval: call start_free first. (A start only lives in this session; after a restart, call start_free again.)", true);
+      : text(`Nothing is waiting for approval: call ${startTool} first. (It only lives in this session; after a restart, call ${startTool} again.)`, true);
   }
   if (Date.now() > pendingClaim.expiresAt) {
     pendingClaim = null;
-    return text("The approval link expired before it was approved. Call start_free again for a new link.", true);
+    return text(`The approval link expired before it was approved. Call ${startTool} again for a new link.`, true);
   }
   let r: Awaited<ReturnType<typeof publicPost>>;
   try {
@@ -332,12 +376,24 @@ async function startFreeStatus(): Promise<ToolResult> {
   }
   if (r.status === 429) return text(`Checked too often. ${waitHint(r.retryAfter)} The link stays valid until it expires.`, true);
   if (r.status === 200 && r.data?.api_key && r.data?.project_id) {
+    // A sign-in that replaced a key from start_free: that key stays valid until the owner removes it (review of A2, L2).
+    const replaced = mode === "sign_in" && !!API_KEY && KEY_SOURCE === "start_free" && !keyRejected;
     API_KEY = r.data.api_key;
     KEY_SOURCE = "start_free";
+    KEY_VIA = mode === "sign_in" ? "sign_in" : "start_free";
     keyRejected = false;
     DEFAULT_PROJECT_ID = r.data.project_id;
     pendingClaim = null;
-    const kept = saveCredentials(r.data.api_key, r.data.project_id);
+    const kept = saveCredentials(r.data.api_key, r.data.project_id, mode);
+    if (mode === "sign_in") {
+      const can = Array.isArray(r.data.scopes) ? plainScopes(r.data.scopes) : "read results";
+      const name = typeof r.data.project_name === "string" && r.data.project_name ? r.data.project_name : r.data.project_id;
+      return text(
+        `Signed in to ${untrusted(name)}. I can ${can}. The owner can take this back any time in RevealWhy, in the product's Settings where its keys are listed. ` +
+          `${kept ? "The key is saved on this computer for the next session." : "The key could not be saved, so it lasts for this session only."}` +
+          `${replaced ? " The key this session had before still works until the owner removes it there." : ""}`,
+      );
+    }
     const scopes = Array.isArray(r.data.scopes) ? r.data.scopes.join(", ") : "";
     return text(
       `Connected to the free project ${r.data.project_id}. This session's key works only for that project${scopes ? ` (${scopes})` : ""}; ` +
@@ -348,19 +404,133 @@ async function startFreeStatus(): Promise<ToolResult> {
   }
   // A transient failure (5xx, 503 limiter, unexpected 4xx) keeps the start: the person may still approve it.
   if (r.status !== 403 && r.status !== 404 && r.status !== 410) {
-    return text(`RevealWhy could not check the approval right now (HTTP ${r.status}). The link stays valid; call start_free_status again in a few seconds.`, true);
+    return text(`RevealWhy could not check the approval right now (HTTP ${r.status}). The link stays valid; call ${statusTool(mode)} again in a few seconds.`, true);
   }
   pendingClaim = null;
   // The server's own sentence when it sent one (server/routes/free-start.ts CLAIM_MESSAGES), else ours; then the next step.
   const said = typeof r.data?.message === "string" && r.data.message ? r.data.message : null;
-  if (r.status === 403) return text(`${said ?? "The person declined, so nothing was connected."} Call start_free again only if they ask for it.`, true);
-  if (r.status === 410 && r.data?.status === "claimed") return text(`${said ?? "This start was already used."} Call start_free again if you need a new one.`, true);
-  return text(`${said ?? "The approval link expired or is no longer valid."} Call start_free again for a new link.`, true);
+  if (r.status === 403) return text(`${said ?? "The person declined, so nothing was connected."} Call ${startTool} again only if they ask for it.`, true);
+  if (r.status === 410 && r.data?.status === "claimed") return text(`${said ?? "This start was already used."} Call ${startTool} again if you need a new one.`, true);
+  return text(`${said ?? "The approval link expired or is no longer valid."} Call ${startTool} again for a new link.`, true);
+}
+
+// ── Connect Notion or GitHub (spec 19.129; server/routes/connect-links.ts) ──────────────────────────────────────────
+// connect_* asks the API for a one-time link (the product's key; nothing secret comes back) and remembers its id;
+// connection_status waits a little for the person to finish, then answers in one sentence.
+type Provider = "notion" | "github";
+const PROVIDER_NAME: Record<Provider, string> = { notion: "Notion", github: "GitHub" };
+type Waiting = { linkId: string; url: string; code: string; expiresAt: number; projectId: string };
+/** Links waiting, per product and tool (review of A2, L4: a second product's link never replaces the first's). */
+const pendingLinks = new Map<string, Waiting>();
+const linkKey = (projectId: string, p: Provider) => `${projectId}\n${p}`;
+/** How long connection_status waits, and how often it looks (tests shorten them). */
+const WAIT_MS = Number(env("CONNECT_WAIT_MS")) || 24_000;
+const POLL_MS = Number(env("CONNECT_POLL_MS")) || 3_000;
+/** After the link's 10 minutes, a link the owner opened is still watched this long (they may still be choosing a page). */
+const OPENED_GRACE_MS = 10 * 60_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** "Notion is connected (Findings)." with the name fenced: it was written by a person, not by RevealWhy (review of A2, L1). */
+const connectedSentence = (p: Provider, name: unknown) =>
+  `${PROVIDER_NAME[p]} is connected${typeof name === "string" && name ? ` (${untrusted(name)})` : ""}.`;
+
+type LinkRead = { ok: true; status: string; connected: boolean; name: unknown; message: string } | { ok: false; error: string };
+async function readLink(projectId: string, w: Waiting): Promise<LinkRead> {
+  const r = await apiCall(`/api/projects/${encodeURIComponent(projectId)}/connect-links/${encodeURIComponent(w.linkId)}`, "read:findings");
+  if (!r.ok) return r;
+  const d = r.data as any;
+  return { ok: true, status: String(d?.status ?? "unknown"), connected: !!d?.connected, name: d?.connection?.name, message: typeof d?.message === "string" ? d.message : "" };
+}
+
+async function connectProvider(provider: Provider, projectId: string): Promise<ToolResult> {
+  const name = PROVIDER_NAME[provider];
+  const now = await apiCall(`/api/projects/${encodeURIComponent(projectId)}/connections`, "read:findings");
+  if (now.ok && (now.data as any)?.[provider]?.connected) {
+    pendingLinks.delete(linkKey(projectId, provider));
+    return text(`${connectedSentence(provider, (now.data as any)[provider].name)} Nothing to do.`);
+  }
+  // A link still waiting is shown again only while it is still unused (review of A2, S1): one the owner opened and
+  // backed out of, or cancelled, is replaced by a new one.
+  const waiting = pendingLinks.get(linkKey(projectId, provider));
+  if (waiting && Date.now() < waiting.expiresAt) {
+    const s = await readLink(projectId, waiting);
+    if (s.ok && s.status === "pending") {
+      return text(`A link is already waiting. Open it to connect ${name}: ${waiting.url} (code ${waiting.code}). Then call connection_status.`);
+    }
+  }
+  pendingLinks.delete(linkKey(projectId, provider));
+  const r = await apiCall(`/api/projects/${encodeURIComponent(projectId)}/connect-links`, "read:findings", "POST", { provider });
+  if (!r.ok) return text(r.error, true);
+  const d = r.data as any;
+  if (typeof d?.url !== "string" || typeof d?.link_id !== "string") return text(GENERIC_ERROR, true);
+  const ttl = Number(d.expires_in) || 600;
+  pendingLinks.set(linkKey(projectId, provider), { linkId: d.link_id, url: d.url, code: d.user_code, expiresAt: Date.now() + ttl * 1000, projectId });
+  return text(
+    `Ask the product's owner to open this link and continue to ${name}: ${d.url}\n` +
+      `The page shows the code ${d.user_code}; it must match. The link works once, for ${Math.round(ttl / 60)} minutes. Then call connection_status.`,
+  );
+}
+
+/** One look at a waiting link: a sentence, and whether the link is finished with (connected, cancelled, expired, stale). */
+async function lookOnce(projectId: string, p: Provider, w: Waiting): Promise<{ done: boolean; error?: boolean; sentence: string }> {
+  const s = await readLink(projectId, w);
+  if (!s.ok) return { done: false, error: true, sentence: s.error };
+  if (s.connected) return { done: true, sentence: connectedSentence(p, s.name) };
+  if (s.status === "cancelled" || s.status === "expired") return { done: true, error: true, sentence: s.message || `The ${PROVIDER_NAME[p]} link ended. Call connect_${p} for a new one.` };
+  // An opened link has no end on the server: stop watching it a while after its own 10 minutes (review of A2, S1).
+  if (Date.now() > w.expiresAt + (s.status === "opened" ? OPENED_GRACE_MS : 0)) {
+    return { done: true, error: true, sentence: `${PROVIDER_NAME[p]} is not connected yet, and the link has run out. Call connect_${p} for a new one.` };
+  }
+  return { done: false, sentence: s.message || `Waiting for the owner to finish connecting ${PROVIDER_NAME[p]}.` };
+}
+
+async function connectionStatus(projectId: string, only?: Provider): Promise<ToolResult> {
+  // One tool asked: wait on its link (if any) until it is done or the wait is over.
+  if (only) {
+    const w = pendingLinks.get(linkKey(projectId, only));
+    if (w) {
+      const deadline = Date.now() + WAIT_MS;
+      for (;;) {
+        const o = await lookOnce(projectId, only, w);
+        if (o.done) { pendingLinks.delete(linkKey(projectId, only)); return text(o.sentence, !!o.error); }
+        if (o.error) return text(o.sentence, true);
+        if (Date.now() + POLL_MS > deadline) return text(`${o.sentence} Call connection_status again in a moment.`);
+        await sleep(POLL_MS);
+      }
+    }
+  }
+  const r = await apiCall(`/api/projects/${encodeURIComponent(projectId)}/connections`, "read:findings");
+  if (!r.ok) return text(r.error, true);
+  const d = r.data as any;
+  const sentenceOf = async (p: Provider): Promise<string> => {
+    const s = d?.[p];
+    if (!s?.available) return `Connecting ${PROVIDER_NAME[p]} is not available yet.`;
+    if (s.connected) { pendingLinks.delete(linkKey(projectId, p)); return connectedSentence(p, s.name); }
+    // Every tool with a waiting link is looked at once, so both are reported (review of A2, L3).
+    const w = pendingLinks.get(linkKey(projectId, p));
+    if (w) {
+      const o = await lookOnce(projectId, p, w);
+      if (o.done) pendingLinks.delete(linkKey(projectId, p));
+      return o.sentence;
+    }
+    return `${PROVIDER_NAME[p]} is not connected. Call connect_${p} for a link.`;
+  };
+  if (only) return text(await sentenceOf(only));
+  return text(`${await sentenceOf("notion")} ${await sentenceOf("github")}`);
 }
 
 async function runTool(def: ToolDef, args: Record<string, any>): Promise<ToolResult> {
   if (def.special === "start_free") return startFree();
   if (def.special === "start_free_status") return startFreeStatus();
+  if (def.special === "sign_in") return startFree("sign_in", Array.isArray(args.scopes) ? args.scopes : []);
+  if (def.special === "sign_in_status") return startFreeStatus("sign_in");
+  if (def.handler) {
+    if (!API_KEY) return text("Not signed in yet: call sign_in first (or start_free for a new free project).", true);
+    const projectId = args.projectId || DEFAULT_PROJECT_ID;
+    if (!projectId) return text(`No project selected: pass projectId or set REVEALWHY_PROJECT_ID. ${SETUP_HINT}`, true);
+    if (def.handler === "connection_status") return connectionStatus(projectId, args.provider);
+    return connectProvider(def.handler === "connect_notion" ? "notion" : "github", projectId);
+  }
   const fixture = fromFixture(def.name, args);
   if (fixture !== undefined) return text(cap(JSON.stringify(fenceUntrusted(fixture), null, 2)));
   if (!API_KEY) return text(`RevealWhy is not configured: REVEALWHY_API_KEY is not set. ${SETUP_HINT}`, true);
@@ -423,7 +593,7 @@ for (const def of TOOLS) {
       description: def.description,
       inputSchema: def.special ? def.input : { projectId: projectIdInput, ...def.input },
       annotations: def.special
-        ? // connecting creates (or reuses) one free project only after the person approves it in the browser
+        ? // connecting creates (or reuses) one free project, or a key, only after the person approves it in the browser
           { title: def.title, readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
         : isWriteTool(def)
         ? // writes move a task through its lifecycle or create a draft no visitor sees until the owner starts it; none deletes
