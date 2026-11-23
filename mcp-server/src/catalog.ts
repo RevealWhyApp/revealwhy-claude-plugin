@@ -39,7 +39,9 @@ export interface ToolDef {
   /** JSON body for a write, from the parsed args (and the resolved project, for routes that take it in the body). */
   body?: (args: Record<string, any>, projectId: string) => Record<string, unknown>;
   /** Handled inside the MCP server, not as a keyed project call: connecting a session through a free start. */
-  special?: "start_free" | "start_free_status";
+  special?: "start_free" | "start_free_status" | "sign_in" | "sign_in_status";
+  /** Handled inside the MCP server WITH the session's key (spec 19.129): connect links and their status. Counted as an ordinary write/read. */
+  handler?: "connect_notion" | "connect_github" | "connection_status";
   /** From the old product (heatmaps, gaze, conversions, journeys). Kept and working; the new flow's tools are in flow-tools.ts. */
   legacy?: boolean;
 }
@@ -896,6 +898,67 @@ export const TOOLS: ToolDef[] = [
     path: () => `/api/free/claim`,
     special: "start_free_status",
   },
+  // ── Connect from the conversation (spec 19.129): sign in, and connect Notion or GitHub, each with one browser link ─
+  {
+    name: "sign_in",
+    title: "Sign in to RevealWhy",
+    description:
+      "Use when the person already has a RevealWhy account and says \"sign me in\" or \"connect RevealWhy\" (for no account, use start_free). Returns one link and a short code: the person signs in, picks their product and ticks what you may do beyond reading. Pass `scopes` for what you need: run:tests (run tests of their site; needed for the others), write:setup (kinds of user, goals, test copies, schedules), write:accounts (RevealWhy test accounts), write:tickets (send problems to GitHub or Notion), write:fix_shipped (mark fixes shipped), write:findings (report fixes to old findings). Then call sign_in_status until it says signed in. No key ever passes through the chat.",
+    scope: "none",
+    method: "POST",
+    input: {
+      scopes: z
+        .array(z.enum(["write:findings", "run:tests", "write:setup", "write:accounts", "write:tickets", "write:fix_shipped"]))
+        .max(6)
+        .optional()
+        .describe("What you would like to do beyond reading. The owner ticks each one; only what they tick is granted."),
+    },
+    path: () => `/api/free/start`,
+    special: "sign_in",
+  },
+  {
+    name: "sign_in_status",
+    title: "Finish signing in",
+    description:
+      "After sign_in: checks whether the person approved. Call it every few seconds while it says not approved yet. Once approved, this session is signed in to the product they picked (the key is saved on this computer for the next session, never shown).",
+    scope: "none",
+    method: "POST",
+    input: {},
+    path: () => `/api/free/claim`,
+    special: "sign_in_status",
+  },
+  {
+    name: "connect_notion",
+    title: "Connect Notion",
+    description:
+      "Use when the person says \"connect my Notion\". Returns one link: the product's owner opens it, continues to Notion and picks where problems go. Then call connection_status. Nothing secret passes through the chat. Needs this session to be signed in to a product.",
+    scope: "read:findings",
+    method: "POST",
+    input: {},
+    path: (pid) => `/api/projects/${enc(pid)}/connect-links`,
+    handler: "connect_notion",
+  },
+  {
+    name: "connect_github",
+    title: "Connect GitHub",
+    description:
+      "Use when the person says \"connect GitHub\". Returns one link: the product's owner opens it, continues to GitHub and picks the repository. Then call connection_status. Nothing secret passes through the chat. Needs this session to be signed in to a product.",
+    scope: "read:findings",
+    method: "POST",
+    input: {},
+    path: (pid) => `/api/projects/${enc(pid)}/connect-links`,
+    handler: "connect_github",
+  },
+  {
+    name: "connection_status",
+    title: "Check connections",
+    description:
+      "Whether Notion and GitHub are connected to the product. After connect_notion or connect_github it waits up to about 25 seconds for the person to finish, then answers in one sentence; call it again if it says it is still waiting.",
+    scope: "read:findings",
+    input: { provider: z.enum(["notion", "github"]).optional().describe("Only this one (default: both)") },
+    path: (pid) => `/api/projects/${enc(pid)}/connections`,
+    handler: "connection_status",
+  },
   {
     name: "report_fix",
     title: "Report a fix",
@@ -1027,7 +1090,7 @@ export const TOOLS: ToolDef[] = [
  * product: it keeps working and now says so in its description and its `legacy` flag. The new flow's tools are in
  * flow-tools.ts (setup, run, results, fixing, report, automate).
  */
-export const NOT_LEGACY: ReadonlySet<string> = new Set(["add_product", "start_free", "start_free_status", "list_findings", "get_finding", "get_finding_evidence", "report_fix", "set_finding_status", "list_agent_tasks", "get_agent_task"]);
+export const NOT_LEGACY: ReadonlySet<string> = new Set(["add_product", "start_free", "start_free_status", "sign_in", "sign_in_status", "connect_notion", "connect_github", "connection_status", "list_findings", "get_finding", "get_finding_evidence", "report_fix", "set_finding_status", "list_agent_tasks", "get_agent_task"]);
 for (const t of TOOLS) {
   if (NOT_LEGACY.has(t.name)) continue;
   t.legacy = true;

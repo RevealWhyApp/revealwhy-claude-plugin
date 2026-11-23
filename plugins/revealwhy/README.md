@@ -30,7 +30,7 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 ## What's included
 
 <!-- generated:tools -->
-**94 MCP tools**: 60 read-only, 31 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `start_journey_check`, `create_study`, `report_fix`, `set_finding_status`, `create_gaze_study`, `create_participant_links`, `check_ownership`, `add_test_copy`, `add_kind`, `describe_kind`, `set_trait_card`, `suggest_test_goals`, `add_test_goal`, `confirm_test_goal`, `make_tester`, `name_test_thing`, `start_test`, `stop_test`, `check_preview`, `send_to_github`, `send_to_notion`, `mark_fix_shipped`, `retest`, `set_schedule`, `pause_schedule`; they need a key with `write:findings` or `run:synthetic` or `write:studies` or `run:tests` or `write:setup` or `write:confirm` or `write:accounts` or `write:tickets` or `write:fix_shipped` as listed below, and never change your site), and 3 that connect a new session without a key (`start_free`, `start_free_status`, `add_product`; the person approves in the browser and the session gets a read-only key).
+**99 MCP tools**: 61 read-only, 33 that write (`start_ab_test`, `set_ab_test_status`, `create_goal`, `confirm_site_goal`, `predict_attention`, `screen_variants`, `start_journey_check`, `create_study`, `connect_notion`, `connect_github`, `report_fix`, `set_finding_status`, `create_gaze_study`, `create_participant_links`, `check_ownership`, `add_test_copy`, `add_kind`, `describe_kind`, `set_trait_card`, `suggest_test_goals`, `add_test_goal`, `confirm_test_goal`, `make_tester`, `name_test_thing`, `start_test`, `stop_test`, `check_preview`, `send_to_github`, `send_to_notion`, `mark_fix_shipped`, `retest`, `set_schedule`, `pause_schedule`; they need a key with `write:findings` or `run:synthetic` or `read:findings` or `write:studies` or `run:tests` or `write:setup` or `write:confirm` or `write:accounts` or `write:tickets` or `write:fix_shipped` as listed below, and never change your site), and 5 that connect a new session without a key (`start_free`, `start_free_status`, `sign_in`, `sign_in_status`, `add_product`; the person approves in the browser; the session gets a key that reads, plus only what the owner ticks).
 
 | Tool | What it does | Access |
 |---|---|---|
@@ -85,6 +85,11 @@ A/B test without leaving your editor. You can then fix the page in the same sess
 | `get_study` | One user test | read (`read:findings`) |
 | `start_free` | Start RevealWhy free | connects (no key needed) |
 | `start_free_status` | Finish starting free | connects (no key needed) |
+| `sign_in` | Sign in to RevealWhy | connects (no key needed) |
+| `sign_in_status` | Finish signing in | connects (no key needed) |
+| `connect_notion` | Connect Notion | **writes** (`read:findings`) |
+| `connect_github` | Connect GitHub | **writes** (`read:findings`) |
+| `connection_status` | Check connections | read (`read:findings`) |
 | `report_fix` | Report a fix | **writes** (`write:findings`) |
 | `set_finding_status` | Set task status | **writes** (`write:findings`) |
 | `get_eye_tracking_status` | Eye tracking (beta, paid plans): status | read (`read:gaze`) |
